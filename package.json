@@ -1,0 +1,50 @@
+{
+  "name": "subscription-manager",
+  "version": "2.0.0",
+  "description": "基于 Cloudflare Workers 的全能订阅管理系统。支持多渠道推送（微信/TG/邮件/Bark）、农历循环、费用统计与可视化仪表盘。",
+  "main": "src/worker.ts",
+  "keywords": [
+    "cloudflare-workers",
+    "subscription-tracker",
+    "notification-service",
+    "typescript",
+    "lunar-calendar",
+    "telegram-bot",
+    "wechat-push",
+    "serverless",
+    "kv-storage"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production",
+    "deploy:staging": "wrangler deploy --env staging",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "validate": "npm run typecheck && npm run lint && npm run test:unit"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.10.6",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "@vitest/coverage-v8": "^1.1.3",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.3",
+    "wrangler": "^4.54.0"
+  }
+}

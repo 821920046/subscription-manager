@@ -1,0 +1,75 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-workers
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight - whoami
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: whoami
+      - name: Preflight - list KV namespaces
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: kv namespace list
+      - name: Validate secrets presence
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CF_TOKEN" ]; then echo "Missing CLOUDFLARE_API_TOKEN secret"; exit 1; fi
+          if [ -z "$CF_ACCOUNT" ]; then echo "Missing CLOUDFLARE_ACCOUNT_ID secret"; exit 1; fi
+      - name: Optional inject KV ID from secret
+        env:
+          CF_KV_ID: ${{ secrets.CF_KV_ID }}
+        run: |
+          echo "::group::wrangler.toml before injection"
+          cat wrangler.toml || true
+          echo "::endgroup::"
+          if [ -n "$CF_KV_ID" ]; then
+            perl -0777 -pe 's/\[\[kv_namespaces\]\]\s*binding\s*=\s*"SUBSCRIPTIONS_KV"\s*id\s*=\s*"[^\"]*"/[[kv_namespaces]]\nbinding = "SUBSCRIPTIONS_KV"\nid = "'$CF_KV_ID'"/sm' -i wrangler.toml
+            echo "Injected KV ID from secrets into wrangler.toml"
+          fi
+          echo "::group::wrangler.toml after injection"
+          cat wrangler.toml || true
+          echo "::endgroup::"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Wrangler CLI
+        run: npm i -g wrangler@latest
+      - name: Check KV binding matches namespace list
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ID=$(grep -Po '^\s*id\s*=\s*"\K[^"]+' wrangler.toml | head -n 1)
+          echo "KV ID in wrangler.toml: $ID"
+          wrangler kv namespace list > kv.json
+          if ! grep -q "$ID" kv.json; then
+            echo "KV ID $ID not found in your account namespaces. Please set CF_KV_ID secret or update wrangler.toml to a valid namespace ID."
+            echo "Namespaces:"
+            cat kv.json
+            exit 1
+          fi
+      - name: Deploy to Cloudflare Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_LOG: debug
+        run: wrangler deploy --env production
