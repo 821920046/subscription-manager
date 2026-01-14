@@ -39,7 +39,7 @@ export class Logger {
     /**
      * 记录错误
      */
-    static error(message: string, error?: Error | unknown): void {
+    static error(message: string, error?: unknown): void {
         const timestamp = new Date().toISOString();
         const logData: LogData = {
             timestamp,

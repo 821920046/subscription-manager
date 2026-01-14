@@ -285,7 +285,7 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
   if (path === '/config') {
     if (method === 'GET') {
       const rawConfig = await getRawConfig(env);
-      const safeConfig = { ...(rawConfig as any) };
+      const safeConfig = { ...rawConfig };
       delete safeConfig.JWT_SECRET;
       delete safeConfig.ADMIN_PASSWORD;
       return new Response(JSON.stringify(safeConfig), { headers: { 'Content-Type': 'application/json' } });
