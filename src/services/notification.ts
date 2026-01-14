@@ -1,5 +1,5 @@
 
-import { Env, ChannelConfig, Subscription, Config, WeChatOfficialAccountConfig } from '../types';
+import { Env, Subscription, Config, WeChatOfficialAccountConfig } from '../types';
 import { formatTimeInTimezone, formatTimezoneDisplay } from '../utils/date';
 import { lunarCalendar } from '../utils/lunar';
 import { requestWithRetry } from '../utils/http';
@@ -39,12 +39,12 @@ export function formatNotificationContent(subscriptions: Subscription[], config:
 
   for (const sub of subscriptions) {
     const typeText = sub.customType || '其他';
-    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${ { day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
+    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${{ day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
 
     // 格式化到期日期（使用所选时区）
     const expiryDateObj = new Date(sub.expiryDate);
     const formattedExpiryDate = formatTimeInTimezone(expiryDateObj, timezone, 'date');
-    
+
     // 农历日期
     let lunarExpiryText = '';
     if (showLunar) {
@@ -55,7 +55,7 @@ export function formatNotificationContent(subscriptions: Subscription[], config:
     // 状态和到期时间
     let statusText = '';
     let statusEmoji = '';
-    
+
     // 计算剩余天数（需要根据时区重新计算，确保准确）
     // 这里简单使用 sub.daysRemaining，假设调用前已更新
     if (sub.daysRemaining === 0) {
@@ -72,7 +72,7 @@ export function formatNotificationContent(subscriptions: Subscription[], config:
     // 获取日历类型和自动续期状态
     const calendarType = sub.useLunar ? '农历' : '公历';
     const autoRenewText = sub.autoRenew ? '是' : '否';
-    
+
     // 构建格式化的通知内容
     const subscriptionContent = `${statusEmoji} **${sub.name}**
 类型: ${typeText} ${periodText}
@@ -82,8 +82,8 @@ export function formatNotificationContent(subscriptions: Subscription[], config:
 到期状态: ${statusText}`;
 
     // 添加备注
-    let finalContent = sub.notes ? 
-      subscriptionContent + `\n备注: ${sub.notes}` : 
+    const finalContent = sub.notes ?
+      subscriptionContent + `\n备注: ${sub.notes}` :
       subscriptionContent;
 
     content += finalContent + '\n\n';
@@ -106,12 +106,12 @@ export function formatWeChatMarkdownContent(subscriptions: Subscription[], confi
 
   for (const sub of subscriptions) {
     const typeText = sub.customType || '其他';
-    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${ { day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
+    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${{ day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
 
     // 格式化到期日期（使用所选时区）
     const expiryDateObj = new Date(sub.expiryDate);
     const formattedExpiryDate = formatTimeInTimezone(expiryDateObj, timezone, 'date');
-    
+
     // 农历日期
     let lunarExpiryText = '';
     if (showLunar) {
@@ -123,7 +123,7 @@ export function formatWeChatMarkdownContent(subscriptions: Subscription[], confi
     let statusText = '';
     let statusEmoji = '';
     let isWarning = false;
-    
+
     // 计算剩余天数
     if (sub.daysRemaining === 0) {
       statusEmoji = '⚠️';
@@ -140,14 +140,14 @@ export function formatWeChatMarkdownContent(subscriptions: Subscription[], confi
 
     // 对到期状态应用颜色
     const finalStatusText = isWarning ? `<font color="warning">${statusText}</font>` : `<font color="info">${statusText}</font>`;
-    
+
     // 标题颜色：警告状态用橙色，正常状态用绿色
     const titleColor = isWarning ? 'warning' : 'info';
 
     // 获取日历类型和自动续期状态
     const calendarType = sub.useLunar ? '农历' : '公历';
     const autoRenewText = sub.autoRenew ? '是' : '否';
-    
+
     // 构建格式化的通知内容
     // 标签使用 comment (灰色) 颜色，标题和重要信息使用颜色高亮
     const subscriptionContent = `${statusEmoji} <font color="${titleColor}">**${sub.name}**</font>
@@ -158,8 +158,8 @@ export function formatWeChatMarkdownContent(subscriptions: Subscription[], confi
 <font color="comment">到期状态:</font> ${finalStatusText}`;
 
     // 添加备注
-    let finalContent = sub.notes ? 
-      subscriptionContent + `\n<font color="comment">备注:</font> ${sub.notes}` : 
+    const finalContent = sub.notes ?
+      subscriptionContent + `\n<font color="comment">备注:</font> ${sub.notes}` :
       subscriptionContent;
 
     content += finalContent + '\n\n';
@@ -178,14 +178,14 @@ export function formatWeChatMarkdownContent(subscriptions: Subscription[], confi
 export function formatWeNotifyStructuredContent(subscriptions: Subscription[], config: Config): string {
   const showLunar = config.showLunarGlobal === true;
   const timezone = config.timezone || 'UTC';
-  
+
   const items = subscriptions.map(sub => {
     const typeText = sub.customType || '其他';
-    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${ { day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
-    
+    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${{ day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
+
     const expiryDateObj = new Date(sub.expiryDate);
     const formattedExpiryDate = formatTimeInTimezone(expiryDateObj, timezone, 'date');
-    
+
     let lunarExpiryText = '';
     if (showLunar) {
       const lunarExpiry = lunarCalendar.solar2lunar(expiryDateObj.getFullYear(), expiryDateObj.getMonth() + 1, expiryDateObj.getDate());
@@ -194,7 +194,7 @@ export function formatWeNotifyStructuredContent(subscriptions: Subscription[], c
 
     let statusText = '';
     let statusColor = '#4caf50'; // default green
-    
+
     if (sub.daysRemaining === 0) {
       statusText = '今天到期！';
       statusColor = '#ff9800'; // orange
@@ -209,15 +209,15 @@ export function formatWeNotifyStructuredContent(subscriptions: Subscription[], c
     const autoRenewText = sub.autoRenew ? '是' : '否';
 
     return {
-        name: sub.name,
-        type: `${typeText} ${periodText}`,
-        calendarType: calendarType,
-        expiryDate: formattedExpiryDate,
-        lunarDate: lunarExpiryText,
-        autoRenew: autoRenewText,
-        statusText: statusText,
-        statusColor: statusColor,
-        notes: sub.notes || ''
+      name: sub.name,
+      type: `${typeText} ${periodText}`,
+      calendarType: calendarType,
+      expiryDate: formattedExpiryDate,
+      lunarDate: lunarExpiryText,
+      autoRenew: autoRenewText,
+      statusText: statusText,
+      statusColor: statusColor,
+      notes: sub.notes || ''
     };
   });
 
@@ -228,119 +228,119 @@ export function formatWeNotifyStructuredContent(subscriptions: Subscription[], c
  * 发送通知到所有启用的渠道
  */
 export async function sendNotificationToAllChannels(title: string, commonContent: string, config: Config, env: Env | null = null, logPrefix = '[定时任务]', subscriptions: Subscription[] | null = null): Promise<void> {
-    if (!config.enabledNotifiers || config.enabledNotifiers.length === 0) {
-        console.log(`${logPrefix} 未启用任何通知渠道。`);
-        return;
-    }
+  if (!config.enabledNotifiers || config.enabledNotifiers.length === 0) {
+    console.log(`${logPrefix} 未启用任何通知渠道。`);
+    return;
+  }
 
-    const results: { channel: string; success: boolean }[] = [];
+  const results: { channel: string; success: boolean }[] = [];
 
-    if (config.enabledNotifiers.includes('notifyx')) {
-        const notifyxContent = `## ${title}\n\n${commonContent}`;
-        const success = await sendNotifyXNotification(title, notifyxContent, `订阅提醒`, config);
-        results.push({ channel: 'notifyx', success });
-        console.log(`${logPrefix} 发送NotifyX通知 ${success ? '成功' : '失败'}`);
+  if (config.enabledNotifiers.includes('notifyx')) {
+    const notifyxContent = `## ${title}\n\n${commonContent}`;
+    const success = await sendNotifyXNotification(title, notifyxContent, `订阅提醒`, config);
+    results.push({ channel: 'notifyx', success });
+    console.log(`${logPrefix} 发送NotifyX通知 ${success ? '成功' : '失败'}`);
+  }
+  if (config.enabledNotifiers.includes('wenotify')) {
+    let wenotifyContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+    if (subscriptions && subscriptions.length > 0) {
+      wenotifyContent = formatWeNotifyStructuredContent(subscriptions, config);
     }
-    if (config.enabledNotifiers.includes('wenotify')) {
-        let wenotifyContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
-        if (subscriptions && subscriptions.length > 0) {
-            wenotifyContent = formatWeNotifyStructuredContent(subscriptions, config);
-        }
-        const success = await sendWeNotifyEdgeNotification(title, wenotifyContent, config);
-        results.push({ channel: 'wenotify', success });
-        console.log(`${logPrefix} 发送WeNotify Edge通知 ${success ? '成功' : '失败'}`);
+    const success = await sendWeNotifyEdgeNotification(title, wenotifyContent, config);
+    results.push({ channel: 'wenotify', success });
+    console.log(`${logPrefix} 发送WeNotify Edge通知 ${success ? '成功' : '失败'}`);
+  }
+  if (config.enabledNotifiers.includes('wechatOfficialAccount')) {
+    const content = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+    const success = await sendWeChatOfficialAccountNotification(title, content, config, env);
+    results.push({ channel: 'wechatOfficialAccount', success });
+    console.log(`${logPrefix} 发送微信公众号通知 ${success ? '成功' : '失败'}`);
+  }
+  if (config.enabledNotifiers.includes('telegram')) {
+    const telegramContent = `*${title}*\n\n${commonContent}`;
+    const success = await sendTelegramNotification(telegramContent, config);
+    results.push({ channel: 'telegram', success });
+    console.log(`${logPrefix} 发送Telegram通知 ${success ? '成功' : '失败'}`);
+  }
+  if (config.enabledNotifiers.includes('webhook')) {
+    const webhookContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+    const success = await sendWebhookNotification(title, webhookContent, config);
+    results.push({ channel: 'webhook', success });
+    console.log(`${logPrefix} 发送企业微信应用通知 ${success ? '成功' : '失败'}`);
+  }
+  if (config.enabledNotifiers.includes('wechatbot')) {
+    let wechatbotContent;
+    // 如果配置为 Markdown 且有订阅数据，使用专用格式化函数（支持颜色）
+    if (config.wechatBot?.msgType === 'markdown' && subscriptions && subscriptions.length > 0) {
+      wechatbotContent = formatWeChatMarkdownContent(subscriptions, config);
+    } else {
+      // 否则（文本模式或无订阅数据），剥离 Markdown 符号以防显示乱码
+      // 注意：如果是 Markdown 模式但无订阅数据（如测试消息），这里也会剥离符号，
+      // 如果希望测试消息也支持 Markdown，可以去掉 replace，但通常测试消息是纯文本。
+      wechatbotContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
     }
-    if (config.enabledNotifiers.includes('wechatOfficialAccount')) {
-        const content = commonContent.replace(/(\**|\*|##|#|`)/g, '');
-        const success = await sendWeChatOfficialAccountNotification(title, content, config, env);
-        results.push({ channel: 'wechatOfficialAccount', success });
-        console.log(`${logPrefix} 发送微信公众号通知 ${success ? '成功' : '失败'}`);
-    }
-    if (config.enabledNotifiers.includes('telegram')) {
-        const telegramContent = `*${title}*\n\n${commonContent}`;
-        const success = await sendTelegramNotification(telegramContent, config);
-        results.push({ channel: 'telegram', success });
-        console.log(`${logPrefix} 发送Telegram通知 ${success ? '成功' : '失败'}`);
-    }
-    if (config.enabledNotifiers.includes('webhook')) {
-        const webhookContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
-        const success = await sendWebhookNotification(title, webhookContent, config);
-        results.push({ channel: 'webhook', success });
-        console.log(`${logPrefix} 发送企业微信应用通知 ${success ? '成功' : '失败'}`);
-    }
-    if (config.enabledNotifiers.includes('wechatbot')) {
-        let wechatbotContent;
-        // 如果配置为 Markdown 且有订阅数据，使用专用格式化函数（支持颜色）
-        if (config.wechatBot?.msgType === 'markdown' && subscriptions && subscriptions.length > 0) {
-            wechatbotContent = formatWeChatMarkdownContent(subscriptions, config);
-        } else {
-            // 否则（文本模式或无订阅数据），剥离 Markdown 符号以防显示乱码
-            // 注意：如果是 Markdown 模式但无订阅数据（如测试消息），这里也会剥离符号，
-            // 如果希望测试消息也支持 Markdown，可以去掉 replace，但通常测试消息是纯文本。
-            wechatbotContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
-        }
-        const success = await sendWechatBotNotification(title, wechatbotContent, config);
-        results.push({ channel: 'wechatbot', success });
-        console.log(`${logPrefix} 发送企业微信机器人通知 ${success ? '成功' : '失败'}`);
-    }
-    if (config.enabledNotifiers.includes('email')) {
-        const emailContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
-        const success = await sendEmailNotification(title, emailContent, config);
-        results.push({ channel: 'email', success });
-        console.log(`${logPrefix} 发送邮件通知 ${success ? '成功' : '失败'}`);
-    }
-    if (config.enabledNotifiers.includes('bark')) {
-        const barkContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
-        const success = await sendBarkNotification(title, barkContent, config);
-        results.push({ channel: 'bark', success });
-        console.log(`${logPrefix} 发送Bark通知 ${success ? '成功' : '失败'}`);
-    }
+    const success = await sendWechatBotNotification(title, wechatbotContent, config);
+    results.push({ channel: 'wechatbot', success });
+    console.log(`${logPrefix} 发送企业微信机器人通知 ${success ? '成功' : '失败'}`);
+  }
+  if (config.enabledNotifiers.includes('email')) {
+    const emailContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+    const success = await sendEmailNotification(title, emailContent, config);
+    results.push({ channel: 'email', success });
+    console.log(`${logPrefix} 发送邮件通知 ${success ? '成功' : '失败'}`);
+  }
+  if (config.enabledNotifiers.includes('bark')) {
+    const barkContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+    const success = await sendBarkNotification(title, barkContent, config);
+    results.push({ channel: 'bark', success });
+    console.log(`${logPrefix} 发送Bark通知 ${success ? '成功' : '失败'}`);
+  }
 
-    const failures = results.filter(r => !r.success);
-    if (failures.length > 0 && env?.SUBSCRIPTIONS_KV) {
-        const payload: any = {
-            timestamp: new Date().toISOString(),
-            title,
-            failures,
-            successes: results.filter(r => r.success)
-        };
-        try {
-            const id = Date.now();
-            const key = `reminder_failure_${id}`;
-            await env.SUBSCRIPTIONS_KV.put(key, JSON.stringify(payload));
-            const idxRaw = await env.SUBSCRIPTIONS_KV.get('reminder_failure_index');
-            let idx: any[] = [];
-            if (idxRaw) {
-                try { idx = JSON.parse(idxRaw) || []; } catch {}
-            }
-            idx.push({ key, id });
-            idx = idx.slice(-100);
-            await env.SUBSCRIPTIONS_KV.put('reminder_failure_index', JSON.stringify(idx));
-        } catch (e) {
-            console.error(`${logPrefix} 写入提醒失败日志到KV失败:`, e);
-        }
-        // try to alert admin using a primary available channel
-        const summary = `提醒发送失败渠道: ${failures.map(f => f.channel).join(', ')}`;
-        const alertTitle = '提醒发送失败';
-        const alertContent = `${summary}\n任务标题: ${title}\n时间: ${new Date().toLocaleString()}`;
-        try {
-            if (config.enabledNotifiers.includes('notifyx')) {
-                await sendNotifyXNotification(alertTitle, `## ${alertTitle}\n\n${alertContent}`, '系统警报', config);
-            } else if (config.enabledNotifiers.includes('wenotify')) {
-                await sendWeNotifyEdgeNotification(alertTitle, alertContent, config);
-            } else if (config.enabledNotifiers.includes('telegram')) {
-                await sendTelegramNotification(`*${alertTitle}*\n\n${alertContent}`, config);
-            } else if (config.enabledNotifiers.includes('wechatbot')) {
-                await sendWechatBotNotification(alertTitle, alertContent, config);
-            } else if (config.enabledNotifiers.includes('email')) {
-                await sendEmailNotification(alertTitle, alertContent, config);
-            } else if (config.enabledNotifiers.includes('bark')) {
-                await sendBarkNotification(alertTitle, alertContent, config);
-            }
-        } catch (e) {
-            console.error(`${logPrefix} 管理员告警发送失败:`, e);
-        }
+  const failures = results.filter(r => !r.success);
+  if (failures.length > 0 && env?.SUBSCRIPTIONS_KV) {
+    const payload: any = {
+      timestamp: new Date().toISOString(),
+      title,
+      failures,
+      successes: results.filter(r => r.success)
+    };
+    try {
+      const id = Date.now();
+      const key = `reminder_failure_${id}`;
+      await env.SUBSCRIPTIONS_KV.put(key, JSON.stringify(payload));
+      const idxRaw = await env.SUBSCRIPTIONS_KV.get('reminder_failure_index');
+      let idx: any[] = [];
+      if (idxRaw) {
+        try { idx = JSON.parse(idxRaw) || []; } catch { }
+      }
+      idx.push({ key, id });
+      idx = idx.slice(-100);
+      await env.SUBSCRIPTIONS_KV.put('reminder_failure_index', JSON.stringify(idx));
+    } catch (e) {
+      console.error(`${logPrefix} 写入提醒失败日志到KV失败:`, e);
     }
+    // try to alert admin using a primary available channel
+    const summary = `提醒发送失败渠道: ${failures.map(f => f.channel).join(', ')}`;
+    const alertTitle = '提醒发送失败';
+    const alertContent = `${summary}\n任务标题: ${title}\n时间: ${new Date().toLocaleString()}`;
+    try {
+      if (config.enabledNotifiers.includes('notifyx')) {
+        await sendNotifyXNotification(alertTitle, `## ${alertTitle}\n\n${alertContent}`, '系统警报', config);
+      } else if (config.enabledNotifiers.includes('wenotify')) {
+        await sendWeNotifyEdgeNotification(alertTitle, alertContent, config);
+      } else if (config.enabledNotifiers.includes('telegram')) {
+        await sendTelegramNotification(`*${alertTitle}*\n\n${alertContent}`, config);
+      } else if (config.enabledNotifiers.includes('wechatbot')) {
+        await sendWechatBotNotification(alertTitle, alertContent, config);
+      } else if (config.enabledNotifiers.includes('email')) {
+        await sendEmailNotification(alertTitle, alertContent, config);
+      } else if (config.enabledNotifiers.includes('bark')) {
+        await sendBarkNotification(alertTitle, alertContent, config);
+      }
+    } catch (e) {
+      console.error(`${logPrefix} 管理员告警发送失败:`, e);
+    }
+  }
 }
 
 // Telegram
@@ -406,19 +406,7 @@ export async function sendWeNotifyEdgeNotification(title: string, content: strin
       if (throwOnError) throw new Error(msg);
       return false;
     }
-    let base = config.wenotify.url.trim().replace(/\/+$/, '');
-    let url = base;
-    
-    // 智能 URL 处理：如果用户只提供了域名（根路径），则自动追加 /wxsend
-    // 如果用户提供了具体路径（如 /api/send），则保留原样
-    try {
-      const urlObj = new URL(base);
-      if (urlObj.pathname === '/' || urlObj.pathname === '') {
-        url = base + '/wxsend';
-      }
-    } catch (e) {
-      url = base.endsWith('/wxsend') ? base : base + '/wxsend';
-    }
+    const base = config.wenotify.url.trim().replace(/\/+$/, '');
 
     const tokenStr = config.wenotify.token.trim();
     const path = (config.wenotify.path || '/wxsend').trim();
@@ -437,7 +425,7 @@ export async function sendWeNotifyEdgeNotification(title: string, content: strin
     if (config.wenotify.templateId) {
       body.template_id = config.wenotify.templateId;
     }
-    let response = await requestWithRetry(primaryUrl, {
+    const response = await requestWithRetry(primaryUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -445,7 +433,7 @@ export async function sendWeNotifyEdgeNotification(title: string, content: strin
       },
       body: JSON.stringify(body)
     }, 2, 8000);
-    
+
     if (!response.ok) {
       const firstText = await response.text();
       const msg = `HTTP ${response.status}: ${firstText}`;
@@ -542,7 +530,7 @@ export async function sendEmailNotification(title: string, content: string, conf
 </body>
 </html>`;
 
-    const fromEmail = config.email.fromEmail.includes('<') ? 
+    const fromEmail = config.email.fromEmail.includes('<') ?
       config.email.fromEmail :
       (config.email.fromEmail ? `Notification <${config.email.fromEmail}>` : '');
 
@@ -703,7 +691,7 @@ export async function sendWeChatOfficialAccountNotification(title: string, conte
       // 构造符合微信模板消息的数据
       // 这里采用一种比较通用的映射方式，兼容 Plan 中提到的 thing01, time01, number01, thing02
       // 注意：微信对字段长度有限制，尤其是 thing 类型
-      
+
       const payloadData: any = {
         thing01: { value: title.substring(0, 20) }, // 标题，截断到20字
         time01: { value: new Date().toISOString().split('T')[0] }, // 当前日期
@@ -731,7 +719,7 @@ export async function sendWeChatOfficialAccountNotification(title: string, conte
         }
       }
     }
-    
+
     return successCount > 0;
   } catch (error) {
     console.error('[WeChat Official Account] 发送通知失败:', error);

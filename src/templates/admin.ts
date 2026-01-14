@@ -721,7 +721,7 @@ export const adminPage = `
         let v = values[i];
         if (v === undefined || v === null) v = '';
         let s = String(v);
-        const needQuote = (s.indexOf(',') !== -1) || (s.indexOf('"') !== -1) || (s.indexOf('\') !== -1) || (s.indexOf('\') !== -1);
+        const needQuote = (s.indexOf(',') !== -1) || (s.indexOf('"') !== -1) || (s.indexOf("'") !== -1) || (s.indexOf('\n') !== -1);
         if (needQuote) {
           s = '"' + s.replace(/"/g, '""') + '"';
         }
@@ -1243,13 +1243,13 @@ export const adminPage = `
       val = val.replace(/[\uFF01-\uFF5E]/g, function(ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
       
       // 2. Remove all whitespace
-      val = val.replace(/\s+/g, '');
+      val = val.replace(/\\s+/g, '');
       
       // 3. Replace common separators with comma
       val = val.replace(/[，、；;]/g, ',');
       
       // 4. Replace time separators
-      val = val.replace(/[：\.]/g, ':');
+      val = val.replace(/[：\\.]/g, ':');
       
       // 5. Remove any character that is not digit, colon, or comma
       val = val.replace(/[^0-9:,]/g, '');

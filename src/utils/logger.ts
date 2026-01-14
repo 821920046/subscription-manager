@@ -31,7 +31,7 @@ export class Logger {
             timestamp,
             level,
             message,
-            ...(data && { data }),
+            ...(data ? { data } : {}),
         };
         console.log(JSON.stringify(logData));
     }

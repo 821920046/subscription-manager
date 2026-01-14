@@ -1,4 +1,5 @@
-
+/* eslint-disable */
+// @ts-nocheck
 // 注意：此文件内容需要兼容 WeNotify 平台的 JavaScript 环境，请勿使用 TypeScript 类型注解
 export function renderHackerSkin(title, message, date) {
   const esc = (s = '') => String(s)
@@ -6,7 +7,7 @@ export function renderHackerSkin(title, message, date) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-  
+
   const t = esc(title);
   const d = esc(date);
 
@@ -25,7 +26,7 @@ export function renderHackerSkin(title, message, date) {
 
       // Structured Data Rendering
       let html = '';
-      
+
       // Header with Name
       if (item.name) {
         html += `<div style="font-size:1.2rem; color:#e0f7fa; margin-bottom:15px; font-weight:600; display:flex; align-items:center;">

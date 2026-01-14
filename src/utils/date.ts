@@ -1,4 +1,4 @@
-export function getCurrentTimeInTimezone(timezone = 'UTC'): Date {
+export function getCurrentTimeInTimezone(_timezone = 'UTC'): Date {
   try {
     // 直接返回当前时间，时区转换在后续计算中处理
     // 这样可以避免时区信息丢失的问题
@@ -14,7 +14,7 @@ export function getTimestampInTimezone(timezone = 'UTC'): number {
   return getCurrentTimeInTimezone(timezone).getTime();
 }
 
-export function convertUTCToTimezone(utcTime: string | number | Date, timezone = 'UTC'): Date {
+export function convertUTCToTimezone(utcTime: string | number | Date, _timezone = 'UTC'): Date {
   try {
     // 直接返回原始时间，时区转换在后续计算中处理
     // 这样可以避免时区信息丢失的问题
@@ -40,7 +40,7 @@ export function isExpired(targetTime: string | number | Date, timezone = 'UTC'):
 export function formatTimeInTimezone(time: string | number | Date, timezone = 'UTC', format = 'full'): string {
   try {
     const date = new Date(time);
-    
+
     if (format === 'date') {
       return date.toLocaleDateString('zh-CN', {
         timeZone: timezone,
@@ -95,9 +95,9 @@ export function formatTimezoneDisplay(timezone = 'UTC'): string {
   try {
     const offset = getTimezoneOffset(timezone);
     const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
-    
+
     // 时区中文名称映射
-    const timezoneNames: {[key: string]: string} = {
+    const timezoneNames: { [key: string]: string } = {
       'UTC': '世界标准时间',
       'Asia/Shanghai': '中国标准时间',
       'Asia/Hong_Kong': '香港时间',
@@ -117,7 +117,7 @@ export function formatTimezoneDisplay(timezone = 'UTC'): string {
       'Australia/Melbourne': '墨尔本时间',
       'Pacific/Auckland': '奥克兰时间'
     };
-    
+
     const timezoneName = timezoneNames[timezone] || timezone;
     return `${timezoneName} (UTC${offsetStr})`;
   } catch (error) {

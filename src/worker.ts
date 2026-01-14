@@ -4,10 +4,10 @@ import { configPage } from './templates/config';
 import { loginPage } from './templates/login';
 import { handleDebugRequest } from './templates/debug';
 import { SubscriptionService } from './services/subscription';
-import { 
-  sendNotificationToAllChannels, 
-  sendTelegramNotification, 
-  sendNotifyXNotification, 
+import {
+  sendNotificationToAllChannels,
+  sendTelegramNotification,
+  sendNotifyXNotification,
   sendWeNotifyEdgeNotification,
   sendWebhookNotification,
   sendWechatBotNotification,
@@ -18,7 +18,6 @@ import {
 } from './services/notification';
 import { getConfig, getRawConfig } from './utils/config';
 import { generateJWT, verifyJWT, generateRandomSecret } from './utils/auth';
-import { getCurrentTimeInTimezone, formatTimeInTimezone } from './utils/date';
 import { getCookieValue } from './utils/http';
 
 const SECURITY_HEADERS = {
@@ -43,7 +42,7 @@ function addSecurityHeaders(response: Response): Response {
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     // security.txt
@@ -53,7 +52,7 @@ Expires: 2027-01-01T00:00:00.000Z
 Preferred-Languages: zh-cn, en
 Encryption: https://${url.hostname}/pgp-key.txt
 Canonical: https://${url.hostname}/.well-known/security.txt`;
-      
+
       return addSecurityHeaders(new Response(content, {
         headers: { 'Content-Type': 'text/plain; charset=utf-8' }
       }));
@@ -75,10 +74,10 @@ Canonical: https://${url.hostname}/.well-known/security.txt`;
     }
 
     // Default: Login or Redirect to Admin
-    return addSecurityHeaders(await handleMainRequest(request, env));
+    return addSecurityHeaders(handleMainRequest(request, env));
   },
 
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const config = await getConfig(env);
     const timezone = config.timezone || 'UTC';
     const now = new Date();
@@ -92,7 +91,7 @@ Canonical: https://${url.hostname}/.well-known/security.txt`;
     const get = (type: string) => parts.find(x => x.type === type)?.value || '00';
     const hhmm = `${get('hour')}:${get('minute')}`;
     const globalTimes = (config.reminderTimes && config.reminderTimes.length > 0) ? config.reminderTimes : ['08:00'];
-    
+
     const subscriptionService = new SubscriptionService(env);
     const { notifications } = await subscriptionService.checkExpiringSubscriptions();
     const filtered = notifications.filter(n => {
@@ -100,11 +99,11 @@ Canonical: https://${url.hostname}/.well-known/security.txt`;
       if (t.length > 0) return t.includes(hhmm);
       return globalTimes.includes(hhmm);
     });
-    
+
     if (filtered.length > 0) {
       // 按到期时间排序
       filtered.sort((a, b) => a.daysUntil - b.daysUntil);
-      
+
       const subscriptions = filtered.map(n => ({
         ...n.subscription,
         daysRemaining: n.daysUntil
@@ -117,7 +116,7 @@ Canonical: https://${url.hostname}/.well-known/security.txt`;
   }
 };
 
-async function handleMainRequest(request: Request, env: Env): Promise<Response> {
+function handleMainRequest(_request: Request, _env: Env): Response {
   return new Response(loginPage, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' }
   });
@@ -232,43 +231,43 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
       }
     });
   }
-  
+
   // Third-party Notification API (Public)
   if (path.startsWith('/notify/')) {
-      // ... implementation ...
-      // reusing existing logic structure
-      if (method === 'POST') {
-        try {
-          if (await isRateLimited('notify', 20)) {
-            return new Response(JSON.stringify({ message: '请求过于频繁' }), { status: 429, headers: { 'Content-Type': 'application/json' } });
-          }
-          const tokenHeader = request.headers.get('X-Notify-Token') || '';
-          const tokenQuery = url.searchParams.get('token') || '';
-          const providedToken = tokenHeader || tokenQuery;
-          if (!providedToken || providedToken !== (config.jwtSecret || '')) {
-            return new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
-          }
-          const body: any = await request.json();
-          const title = body.title || '第三方通知';
-          const content = body.content || '';
-
-          if (!content) {
-            return new Response(JSON.stringify({ message: '缺少必填参数 content' }), { status: 400 });
-          }
-
-          await sendNotificationToAllChannels(title, content, config, env, '[第三方API]');
-
-          return new Response(JSON.stringify({
-              message: '发送成功',
-              response: { errcode: 0, errmsg: 'ok', msgid: 'MSGID' + Date.now() }
-            }), { headers: { 'Content-Type': 'application/json' } });
-        } catch (error: any) {
-          return new Response(JSON.stringify({
-              message: '发送失败',
-              response: { errcode: 1, errmsg: error.message }
-            }), { status: 500 });
+    // ... implementation ...
+    // reusing existing logic structure
+    if (method === 'POST') {
+      try {
+        if (await isRateLimited('notify', 20)) {
+          return new Response(JSON.stringify({ message: '请求过于频繁' }), { status: 429, headers: { 'Content-Type': 'application/json' } });
         }
+        const tokenHeader = request.headers.get('X-Notify-Token') || '';
+        const tokenQuery = url.searchParams.get('token') || '';
+        const providedToken = tokenHeader || tokenQuery;
+        if (!providedToken || providedToken !== (config.jwtSecret || '')) {
+          return new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+        }
+        const body: any = await request.json();
+        const title = body.title || '第三方通知';
+        const content = body.content || '';
+
+        if (!content) {
+          return new Response(JSON.stringify({ message: '缺少必填参数 content' }), { status: 400 });
+        }
+
+        await sendNotificationToAllChannels(title, content, config, env, '[第三方API]');
+
+        return new Response(JSON.stringify({
+          message: '发送成功',
+          response: { errcode: 0, errmsg: 'ok', msgid: 'MSGID' + Date.now() }
+        }), { headers: { 'Content-Type': 'application/json' } });
+      } catch (error: any) {
+        return new Response(JSON.stringify({
+          message: '发送失败',
+          response: { errcode: 1, errmsg: error.message }
+        }), { status: 500 });
       }
+    }
   }
 
   // Auth Check for other APIs
@@ -286,56 +285,58 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
   if (path === '/config') {
     if (method === 'GET') {
       const rawConfig = await getRawConfig(env);
-      const { JWT_SECRET, ADMIN_PASSWORD, ...safeConfig } = rawConfig;
+      const safeConfig = { ...(rawConfig as any) };
+      delete safeConfig.JWT_SECRET;
+      delete safeConfig.ADMIN_PASSWORD;
       return new Response(JSON.stringify(safeConfig), { headers: { 'Content-Type': 'application/json' } });
     }
     if (method === 'POST') {
       try {
         const newConfig: any = await request.json();
         const currentRawConfig = await getRawConfig(env);
-        
+
         const updatedConfig = {
-            ...currentRawConfig,
-            ADMIN_USERNAME: newConfig.ADMIN_USERNAME || currentRawConfig.ADMIN_USERNAME,
-            TG_BOT_TOKEN: newConfig.TG_BOT_TOKEN || '',
-            TG_CHAT_ID: newConfig.TG_CHAT_ID || '',
-            NOTIFYX_API_KEY: newConfig.NOTIFYX_API_KEY || '',
-            WENOTIFY_URL: newConfig.WENOTIFY_URL || '',
-            WENOTIFY_TOKEN: newConfig.WENOTIFY_TOKEN || '',
-            WENOTIFY_USERID: newConfig.WENOTIFY_USERID || '',
-            WENOTIFY_TEMPLATE_ID: newConfig.WENOTIFY_TEMPLATE_ID || '',
-            WENOTIFY_PATH: newConfig.WENOTIFY_PATH || currentRawConfig.WENOTIFY_PATH || '/wxsend',
-            WEBHOOK_URL: newConfig.WEBHOOK_URL || '',
-            WEBHOOK_METHOD: newConfig.WEBHOOK_METHOD || 'POST',
-            WEBHOOK_HEADERS: newConfig.WEBHOOK_HEADERS || '',
-            WEBHOOK_TEMPLATE: newConfig.WEBHOOK_TEMPLATE || '',
-            SHOW_LUNAR: newConfig.SHOW_LUNAR === true,
-            WECHATBOT_WEBHOOK: newConfig.WECHATBOT_WEBHOOK || '',
-            WECHATBOT_MSG_TYPE: newConfig.WECHATBOT_MSG_TYPE || 'text',
-            WECHATBOT_AT_MOBILES: newConfig.WECHATBOT_AT_MOBILES || '',
-            WECHATBOT_AT_ALL: newConfig.WECHATBOT_AT_ALL || 'false',
-            WECHAT_OA_APPID: newConfig.WECHAT_OA_APPID || '',
-            WECHAT_OA_APPSECRET: newConfig.WECHAT_OA_APPSECRET || '',
-            WECHAT_OA_TEMPLATE_ID: newConfig.WECHAT_OA_TEMPLATE_ID || '',
-            WECHAT_OA_USERIDS: newConfig.WECHAT_OA_USERIDS || '',
-            RESEND_API_KEY: newConfig.RESEND_API_KEY || '',
-            EMAIL_FROM: newConfig.EMAIL_FROM || '',
-            EMAIL_FROM_NAME: newConfig.EMAIL_FROM_NAME || '',
-        EMAIL_TO: newConfig.EMAIL_TO || '',
-        BARK_DEVICE_KEY: newConfig.BARK_DEVICE_KEY || '',
-        BARK_SERVER: newConfig.BARK_SERVER || 'https://api.day.app',
-        BARK_IS_ARCHIVE: newConfig.BARK_IS_ARCHIVE || 'false',
-        ENABLED_NOTIFIERS: newConfig.ENABLED_NOTIFIERS || ['notifyx'],
-        TIMEZONE: newConfig.TIMEZONE || currentRawConfig.TIMEZONE || 'UTC',
-        REMINDER_TIMES: newConfig.REMINDER_TIMES || currentRawConfig.REMINDER_TIMES || ''
-      };
-        
+          ...currentRawConfig,
+          ADMIN_USERNAME: newConfig.ADMIN_USERNAME || currentRawConfig.ADMIN_USERNAME,
+          TG_BOT_TOKEN: newConfig.TG_BOT_TOKEN || '',
+          TG_CHAT_ID: newConfig.TG_CHAT_ID || '',
+          NOTIFYX_API_KEY: newConfig.NOTIFYX_API_KEY || '',
+          WENOTIFY_URL: newConfig.WENOTIFY_URL || '',
+          WENOTIFY_TOKEN: newConfig.WENOTIFY_TOKEN || '',
+          WENOTIFY_USERID: newConfig.WENOTIFY_USERID || '',
+          WENOTIFY_TEMPLATE_ID: newConfig.WENOTIFY_TEMPLATE_ID || '',
+          WENOTIFY_PATH: newConfig.WENOTIFY_PATH || currentRawConfig.WENOTIFY_PATH || '/wxsend',
+          WEBHOOK_URL: newConfig.WEBHOOK_URL || '',
+          WEBHOOK_METHOD: newConfig.WEBHOOK_METHOD || 'POST',
+          WEBHOOK_HEADERS: newConfig.WEBHOOK_HEADERS || '',
+          WEBHOOK_TEMPLATE: newConfig.WEBHOOK_TEMPLATE || '',
+          SHOW_LUNAR: newConfig.SHOW_LUNAR === true,
+          WECHATBOT_WEBHOOK: newConfig.WECHATBOT_WEBHOOK || '',
+          WECHATBOT_MSG_TYPE: newConfig.WECHATBOT_MSG_TYPE || 'text',
+          WECHATBOT_AT_MOBILES: newConfig.WECHATBOT_AT_MOBILES || '',
+          WECHATBOT_AT_ALL: newConfig.WECHATBOT_AT_ALL || 'false',
+          WECHAT_OA_APPID: newConfig.WECHAT_OA_APPID || '',
+          WECHAT_OA_APPSECRET: newConfig.WECHAT_OA_APPSECRET || '',
+          WECHAT_OA_TEMPLATE_ID: newConfig.WECHAT_OA_TEMPLATE_ID || '',
+          WECHAT_OA_USERIDS: newConfig.WECHAT_OA_USERIDS || '',
+          RESEND_API_KEY: newConfig.RESEND_API_KEY || '',
+          EMAIL_FROM: newConfig.EMAIL_FROM || '',
+          EMAIL_FROM_NAME: newConfig.EMAIL_FROM_NAME || '',
+          EMAIL_TO: newConfig.EMAIL_TO || '',
+          BARK_DEVICE_KEY: newConfig.BARK_DEVICE_KEY || '',
+          BARK_SERVER: newConfig.BARK_SERVER || 'https://api.day.app',
+          BARK_IS_ARCHIVE: newConfig.BARK_IS_ARCHIVE || 'false',
+          ENABLED_NOTIFIERS: newConfig.ENABLED_NOTIFIERS || ['notifyx'],
+          TIMEZONE: newConfig.TIMEZONE || currentRawConfig.TIMEZONE || 'UTC',
+          REMINDER_TIMES: newConfig.REMINDER_TIMES || currentRawConfig.REMINDER_TIMES || ''
+        };
+
         if (newConfig.ADMIN_PASSWORD) {
-            updatedConfig.ADMIN_PASSWORD = newConfig.ADMIN_PASSWORD;
+          updatedConfig.ADMIN_PASSWORD = newConfig.ADMIN_PASSWORD;
         }
 
         if (!updatedConfig.JWT_SECRET || updatedConfig.JWT_SECRET === 'your-secret-key') {
-            updatedConfig.JWT_SECRET = generateRandomSecret();
+          updatedConfig.JWT_SECRET = generateRandomSecret();
         }
 
         await env.SUBSCRIPTIONS_KV.put('config', JSON.stringify(updatedConfig));
@@ -351,7 +352,7 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
       const idxRaw = await env.SUBSCRIPTIONS_KV.get('reminder_failure_index');
       let idx: any[] = [];
       if (idxRaw) {
-        try { idx = JSON.parse(idxRaw) || []; } catch {}
+        try { idx = JSON.parse(idxRaw) || []; } catch { }
       }
       const limit = parseInt(url.searchParams.get('limit') || '50');
       const keys = idx.slice(-limit).reverse();
@@ -362,7 +363,7 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
         try {
           const obj = JSON.parse(raw);
           out.push({ key: item.key, id: item.id, ...obj });
-        } catch {}
+        } catch { }
       }
       return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json' } });
     } catch (e: any) {
@@ -373,81 +374,81 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
   // Test Notification API
   if (path === '/test-notification' && method === 'POST') {
     try {
-        const body: any = await request.json();
-        let success = false;
-        
-        // Create temporary config for test with overrides
-        const tempConfig = { ...config };
-        
-        if (body.type === 'telegram') {
-            tempConfig.telegram = {
-                botToken: body.TG_BOT_TOKEN || config.telegram?.botToken || '',
-                chatId: body.TG_CHAT_ID || config.telegram?.chatId || ''
-            };
-            const content = '*测试通知*\n\n这是一条测试通知...';
-            success = await sendTelegramNotification(content, tempConfig);
-        } else if (body.type === 'notifyx') {
-            tempConfig.notifyx = {
-                apiKey: body.NOTIFYX_API_KEY || config.notifyx?.apiKey || ''
-            };
-            success = await sendNotifyXNotification('测试通知', '## 测试通知...', '测试描述', tempConfig);
-        } else if (body.type === 'wenotify') {
-            tempConfig.wenotify = {
-                url: body.WENOTIFY_URL || config.wenotify?.url || '',
-                token: body.WENOTIFY_TOKEN || config.wenotify?.token || '',
-                userid: body.WENOTIFY_USERID || config.wenotify?.userid || '',
-                templateId: body.WENOTIFY_TEMPLATE_ID || config.wenotify?.templateId || ''
-            };
-            success = await sendWeNotifyEdgeNotification('测试通知', '测试通知...', tempConfig, true);
-        } else if (body.type === 'webhook') {
-            tempConfig.webhook = {
-                url: body.WEBHOOK_URL || config.webhook?.url || '',
-                method: body.WEBHOOK_METHOD || config.webhook?.method || 'POST',
-                headers: body.WEBHOOK_HEADERS || config.webhook?.headers || '',
-                template: body.WEBHOOK_TEMPLATE || config.webhook?.template || ''
-            };
-            success = await sendWebhookNotification('测试通知', '测试通知...', tempConfig);
-        } else if (body.type === 'wechatbot') {
-            tempConfig.wechatBot = {
-                webhook: body.WECHATBOT_WEBHOOK || config.wechatBot?.webhook || '',
-                msgType: body.WECHATBOT_MSG_TYPE || config.wechatBot?.msgType || 'text',
-                atMobiles: body.WECHATBOT_AT_MOBILES || config.wechatBot?.atMobiles || '',
-                atAll: body.WECHATBOT_AT_ALL || config.wechatBot?.atAll || 'false'
-            };
-            success = await sendWechatBotNotification('测试通知', '测试通知...', tempConfig);
-        } else if (body.type === 'wechatOfficialAccount') {
-            tempConfig.wechatOfficialAccount = {
-                appId: body.WECHAT_OA_APPID || config.wechatOfficialAccount?.appId || '',
-                appSecret: body.WECHAT_OA_APPSECRET || config.wechatOfficialAccount?.appSecret || '',
-                templateId: body.WECHAT_OA_TEMPLATE_ID || config.wechatOfficialAccount?.templateId || '',
-                userIds: body.WECHAT_OA_USERIDS || config.wechatOfficialAccount?.userIds || ''
-            };
-            success = await sendWeChatOfficialAccountNotification('测试通知', '这是一条测试通知', tempConfig, env);
-        } else if (body.type === 'email') {
-            tempConfig.email = {
-                resendApiKey: body.RESEND_API_KEY || config.email?.resendApiKey || '',
-                fromEmail: body.EMAIL_FROM || config.email?.fromEmail || '',
-                toEmail: body.EMAIL_TO || config.email?.toEmail || ''
-            };
-            success = await sendEmailNotification('测试通知', '测试通知...', tempConfig);
-        } else if (body.type === 'bark') {
-            tempConfig.bark = {
-                server: body.BARK_SERVER || config.bark?.server || '',
-                deviceKey: body.BARK_DEVICE_KEY || config.bark?.deviceKey || '',
-                isArchive: body.BARK_IS_ARCHIVE || config.bark?.isArchive || 'false'
-            };
-            success = await sendBarkNotification('测试通知', '测试通知...', tempConfig);
-        }
-        
-        return new Response(JSON.stringify({ success, message: success ? '发送成功' : '发送失败' }), { headers: { 'Content-Type': 'application/json' } });
+      const body: any = await request.json();
+      let success = false;
+
+      // Create temporary config for test with overrides
+      const tempConfig = { ...config };
+
+      if (body.type === 'telegram') {
+        tempConfig.telegram = {
+          botToken: body.TG_BOT_TOKEN || config.telegram?.botToken || '',
+          chatId: body.TG_CHAT_ID || config.telegram?.chatId || ''
+        };
+        const content = '*测试通知*\n\n这是一条测试通知...';
+        success = await sendTelegramNotification(content, tempConfig);
+      } else if (body.type === 'notifyx') {
+        tempConfig.notifyx = {
+          apiKey: body.NOTIFYX_API_KEY || config.notifyx?.apiKey || ''
+        };
+        success = await sendNotifyXNotification('测试通知', '## 测试通知...', '测试描述', tempConfig);
+      } else if (body.type === 'wenotify') {
+        tempConfig.wenotify = {
+          url: body.WENOTIFY_URL || config.wenotify?.url || '',
+          token: body.WENOTIFY_TOKEN || config.wenotify?.token || '',
+          userid: body.WENOTIFY_USERID || config.wenotify?.userid || '',
+          templateId: body.WENOTIFY_TEMPLATE_ID || config.wenotify?.templateId || ''
+        };
+        success = await sendWeNotifyEdgeNotification('测试通知', '测试通知...', tempConfig, true);
+      } else if (body.type === 'webhook') {
+        tempConfig.webhook = {
+          url: body.WEBHOOK_URL || config.webhook?.url || '',
+          method: body.WEBHOOK_METHOD || config.webhook?.method || 'POST',
+          headers: body.WEBHOOK_HEADERS || config.webhook?.headers || '',
+          template: body.WEBHOOK_TEMPLATE || config.webhook?.template || ''
+        };
+        success = await sendWebhookNotification('测试通知', '测试通知...', tempConfig);
+      } else if (body.type === 'wechatbot') {
+        tempConfig.wechatBot = {
+          webhook: body.WECHATBOT_WEBHOOK || config.wechatBot?.webhook || '',
+          msgType: body.WECHATBOT_MSG_TYPE || config.wechatBot?.msgType || 'text',
+          atMobiles: body.WECHATBOT_AT_MOBILES || config.wechatBot?.atMobiles || '',
+          atAll: body.WECHATBOT_AT_ALL || config.wechatBot?.atAll || 'false'
+        };
+        success = await sendWechatBotNotification('测试通知', '测试通知...', tempConfig);
+      } else if (body.type === 'wechatOfficialAccount') {
+        tempConfig.wechatOfficialAccount = {
+          appId: body.WECHAT_OA_APPID || config.wechatOfficialAccount?.appId || '',
+          appSecret: body.WECHAT_OA_APPSECRET || config.wechatOfficialAccount?.appSecret || '',
+          templateId: body.WECHAT_OA_TEMPLATE_ID || config.wechatOfficialAccount?.templateId || '',
+          userIds: body.WECHAT_OA_USERIDS || config.wechatOfficialAccount?.userIds || ''
+        };
+        success = await sendWeChatOfficialAccountNotification('测试通知', '这是一条测试通知', tempConfig, env);
+      } else if (body.type === 'email') {
+        tempConfig.email = {
+          resendApiKey: body.RESEND_API_KEY || config.email?.resendApiKey || '',
+          fromEmail: body.EMAIL_FROM || config.email?.fromEmail || '',
+          toEmail: body.EMAIL_TO || config.email?.toEmail || ''
+        };
+        success = await sendEmailNotification('测试通知', '测试通知...', tempConfig);
+      } else if (body.type === 'bark') {
+        tempConfig.bark = {
+          server: body.BARK_SERVER || config.bark?.server || '',
+          deviceKey: body.BARK_DEVICE_KEY || config.bark?.deviceKey || '',
+          isArchive: body.BARK_IS_ARCHIVE || config.bark?.isArchive || 'false'
+        };
+        success = await sendBarkNotification('测试通知', '测试通知...', tempConfig);
+      }
+
+      return new Response(JSON.stringify({ success, message: success ? '发送成功' : '发送失败' }), { headers: { 'Content-Type': 'application/json' } });
     } catch (error: any) {
-        return new Response(JSON.stringify({ success: false, message: error?.message || '未知错误' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: false, message: error?.message || '未知错误' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
   }
 
   // Subscriptions API
   const subscriptionService = new SubscriptionService(env);
-  
+
   if (path === '/subscriptions') {
     if (method === 'GET') {
       const subscriptions = await subscriptionService.getAllSubscriptions();
@@ -475,13 +476,13 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
       try {
         const sub = await subscriptionService.getSubscription(id);
         if (!sub) return new Response(JSON.stringify({ success: false, message: 'Subscription not found' }), { status: 404 });
-        
+
         // Calculate days remaining roughly
         const now = new Date();
         const expiry = new Date(sub.expiryDate);
         // Note: exact calculation logic is in checkExpiringSubscriptions but we can approximate or duplicate for display
         sub.daysRemaining = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         const content = formatNotificationContent([sub], config);
         await sendNotificationToAllChannels('订阅提醒测试', content, config, env, '[手动测试]', [sub]);
         return new Response(JSON.stringify({ success: true, message: '已发送' }), { headers: { 'Content-Type': 'application/json' } });

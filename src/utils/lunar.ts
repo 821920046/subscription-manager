@@ -101,7 +101,7 @@ const lunarCalendar = {
     }
 
     let lunarMonth = 1;
-    let leap = this.leapMonth(lunarYear);
+    const leap = this.leapMonth(lunarYear);
     let isLeap = false;
 
     for (lunarMonth = 1; lunarMonth < 13 && offset > 0; lunarMonth++) {
@@ -165,7 +165,7 @@ export function addLunarPeriod(lunar: { year: number, month: number, day: number
       isLeap = false;
     }
   } else if (periodUnit === 'month') {
-    let totalMonths = (year - 1900) * 12 + (month - 1) + periodValue;
+    const totalMonths = (year - 1900) * 12 + (month - 1) + periodValue;
     year = Math.floor(totalMonths / 12) + 1900;
     month = (totalMonths % 12) + 1;
     const leap = lunarCalendar.leapMonth(year);
@@ -184,14 +184,14 @@ export function addLunarPeriod(lunar: { year: number, month: number, day: number
     return lunar; // Fallback
   }
 
-  let maxDay = isLeap
+  const maxDay = isLeap
     ? lunarCalendar.leapDays(year)
     : lunarCalendar.monthDays(year, month);
   let targetDay = Math.min(day, maxDay);
   
   // 简单回退处理日期无效的情况
   while (targetDay > 0) {
-    let solar = lunar2solar({ year, month, day: targetDay, isLeap });
+    const solar = lunar2solar({ year, month, day: targetDay, isLeap });
     if (solar) {
       return { year, month, day: targetDay, isLeap };
     }

@@ -84,7 +84,7 @@ export class RateLimiter {
      * 重置特定 IP 的速率限制（用于测试或管理）
      */
     static async reset(env: Env, ip: string, type: string): Promise<void> {
-        const bucket = Math.floor(Date.now() / (this.configs[type]?.windowMs || CONFIG.RATE_LIMIT.API.WINDOW_MS));
+        const bucket = Math.floor(Date.now() / (this.configs[type]?.windowMs || CONFIG.RATE_LIMIT.API.windowMs));
         const rateLimitKey = `ratelimit:${type}:${ip}:${bucket}`;
         await env.SUBSCRIPTIONS_KV.delete(rateLimitKey);
     }
