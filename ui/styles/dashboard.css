@@ -1,0 +1,141 @@
+/* 仪表盘页面样式 */
+
+.dashboard-page {
+  max-width: 1200px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+
+.stat-card {
+  background-color: white;
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  transition: box-shadow var(--transition-fast);
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.chart-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+
+.chart-placeholder {
+  background-color: white;
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-md);
+  height: 300px;
+}
+
+.expiry-section {
+  margin-top: var(--space-8);
+}
+
+.expiry-list {
+  background-color: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+/* 移动端仪表盘优化 */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+
+  .stat-card {
+    padding: var(--space-4);
+    flex-direction: column;
+    text-align: center;
+    gap: var(--space-2);
+  }
+
+  .stat-card .icon {
+    font-size: 1.5rem;
+  }
+
+  .stat-card .value {
+    font-size: var(--font-size-xl);
+  }
+
+  .stat-card .label {
+    font-size: var(--font-size-xs);
+  }
+
+  .chart-section {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+
+  .chart-placeholder {
+    padding: var(--space-4);
+    height: 250px;
+  }
+
+  .expiry-section {
+    margin-top: var(--space-6);
+  }
+
+  .expiry-list > div {
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+  }
+
+  .expiry-list .days-left {
+    width: 36px;
+    height: 36px;
+    font-size: var(--font-size-sm);
+  }
+
+  .expiry-list .name {
+    font-size: var(--font-size-sm);
+  }
+
+  .expiry-list .date {
+    font-size: var(--font-size-xs);
+  }
+
+  .expiry-list button {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+    min-height: 36px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* 小屏幕手机优化 */
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 暗色模式 */
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .chart-placeholder,
+[data-theme="dark"] .expiry-list {
+  background-color: var(--color-neutral-800);
+}
+
+[data-theme="dark"] .expiry-list > div {
+  border-color: var(--color-neutral-700);
+}

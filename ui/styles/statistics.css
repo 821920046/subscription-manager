@@ -1,0 +1,90 @@
+/* 统计页面样式 */
+
+.statistics-page {
+  max-width: 1200px;
+}
+
+/* 移动端统计页面优化 */
+@media (max-width: 768px) {
+  .statistics-page .filter-bar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .statistics-page .filter-bar button {
+    flex: 1;
+    min-width: 60px;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    min-height: 40px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .statistics-page .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+
+  .statistics-page .stat-card {
+    padding: var(--space-4);
+  }
+
+  .statistics-page .stat-card .icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+
+  .statistics-page .stat-card .value {
+    font-size: var(--font-size-lg);
+  }
+
+  .statistics-page .charts-section {
+    grid-template-columns: 1fr;
+  }
+
+  .statistics-page .chart-container {
+    padding: var(--space-4);
+  }
+
+  /* 饼图在移动端优化 */
+  .statistics-page .pie-chart {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .statistics-page .pie-chart .legend {
+    width: 100%;
+    margin-top: var(--space-4);
+  }
+
+  /* 明细表格横向滚动 */
+  .statistics-page .detail-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .statistics-page .detail-table table {
+    min-width: 500px;
+  }
+
+  .statistics-page .detail-table th,
+  .statistics-page .detail-table td {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .statistics-page .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 暗色模式 */
+[data-theme="dark"] .statistics-page .stat-card,
+[data-theme="dark"] .statistics-page table {
+  background-color: var(--color-neutral-800);
+}

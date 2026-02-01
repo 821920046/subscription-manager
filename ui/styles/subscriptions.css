@@ -1,0 +1,151 @@
+/* 订阅页面样式 */
+
+.subscription-list-page {
+  max-width: 1200px;
+}
+
+.subscription-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-6);
+}
+
+.subscription-card {
+  background-color: white;
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-md);
+  transition: box-shadow var(--transition-fast);
+}
+
+.subscription-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.subscription-table {
+  background-color: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.subscription-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.subscription-table th,
+.subscription-table td {
+  padding: var(--space-4) var(--space-6);
+  text-align: left;
+  border-bottom: 1px solid var(--color-neutral-200);
+}
+
+.subscription-table th {
+  background-color: var(--color-neutral-50);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-neutral-700);
+}
+
+.subscription-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* 移动端订阅页面优化 */
+@media (max-width: 768px) {
+  /* 卡片视图优化 */
+  .subscription-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .subscription-card {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+  }
+
+  .subscription-card h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .subscription-card .price {
+    font-size: var(--font-size-xl);
+  }
+
+  /* 卡片按钮触摸优化 */
+  .subscription-card button {
+    min-height: 40px;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--font-size-base);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 表格横向滚动 */
+  .subscription-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .subscription-table table {
+    min-width: 600px;
+  }
+
+  .subscription-table th,
+  .subscription-table td {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  /* 工具栏优化 */
+  .subscription-list-page .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .subscription-list-page .filters {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .subscription-list-page .filters select {
+    width: 100%;
+    padding: var(--space-3);
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .subscription-list-page .actions {
+    justify-content: space-between;
+  }
+
+  /* 视图切换按钮优化 */
+  .view-toggle button {
+    min-height: 40px;
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+    touch-action: manipulation;
+  }
+
+  /* 新增按钮在移动端隐藏（使用FAB替代） */
+  .subscription-list-page .add-btn {
+    display: none;
+  }
+}
+
+/* 暗色模式 */
+[data-theme="dark"] .subscription-card,
+[data-theme="dark"] .subscription-table {
+  background-color: var(--color-neutral-800);
+}
+
+[data-theme="dark"] .subscription-table th {
+  background-color: var(--color-neutral-900);
+  color: var(--color-neutral-300);
+}
+
+[data-theme="dark"] .subscription-table td {
+  border-color: var(--color-neutral-700);
+  color: var(--color-neutral-300);
+}
