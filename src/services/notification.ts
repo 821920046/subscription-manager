@@ -344,6 +344,70 @@ export function distributeWeNotifyNotifications(subscriptions: Subscription[], c
 }
 
 /**
+ * 分发企微机器人通知内容
+ */
+export function distributeWechatBotNotifications(subscriptions: Subscription[], config: Config): Map<string, Subscription[]> {
+  const distribution = new Map<string, Subscription[]>();
+  const globalWebhooks = (config.wechatBot?.webhook || '').split('|').map(s => s.trim()).filter(Boolean);
+
+  for (const sub of subscriptions) {
+    let targets: string[] = [];
+    if (sub.wechatBotKeys) {
+      const targetKeys = sub.wechatBotKeys.split(/[,;|]/).map(s => s.trim()).filter(Boolean);
+      // 匹配包含对应 Key 的 Webhook
+      targets = globalWebhooks.filter(url => {
+        try {
+          const urlObj = new URL(url);
+          const key = urlObj.searchParams.get('key');
+          return key && targetKeys.includes(key);
+        } catch {
+          return false;
+        }
+      });
+    }
+
+    if (targets.length === 0) {
+      targets = globalWebhooks.length > 0 ? globalWebhooks : [''];
+    }
+
+    for (const url of targets) {
+      if (!distribution.has(url)) {
+        distribution.set(url, []);
+      }
+      distribution.get(url)!.push(sub);
+    }
+  }
+  return distribution;
+}
+
+/**
+ * 分发邮件通知内容
+ */
+export function distributeEmailNotifications(subscriptions: Subscription[], config: Config): Map<string, Subscription[]> {
+  const distribution = new Map<string, Subscription[]>();
+  const globalEmails = (config.email?.toEmail || '').split(/[,;|]/).map(s => s.trim()).filter(Boolean);
+
+  for (const sub of subscriptions) {
+    let targets: string[] = [];
+    if (sub.emailAddresses) {
+      targets = sub.emailAddresses.split(/[,;|]/).map(s => s.trim()).filter(Boolean);
+    }
+
+    if (targets.length === 0) {
+      targets = globalEmails.length > 0 ? globalEmails : [''];
+    }
+
+    for (const email of targets) {
+      if (!distribution.has(email)) {
+        distribution.set(email, []);
+      }
+      distribution.get(email)!.push(sub);
+    }
+  }
+  return distribution;
+}
+
+/**
  * 发送通知到所有启用的渠道
  */
 export async function sendNotificationToAllChannels(title: string, commonContent: string, config: Config, env: Env | null = null, logPrefix = '[定时任务]', subscriptions: Subscription[] | null = null): Promise<void> {
@@ -407,25 +471,55 @@ export async function sendNotificationToAllChannels(title: string, commonContent
     console.log(`${logPrefix} 发送企业微信应用通知 ${success ? '成功' : '失败'}`);
   }
   if (config.enabledNotifiers.includes('wechatbot')) {
-    let wechatbotContent;
-    // 如果配置为 Markdown 且有订阅数据，使用专用格式化函数（支持颜色）
-    if (config.wechatBot?.msgType === 'markdown' && subscriptions && subscriptions.length > 0) {
-      wechatbotContent = formatWeChatMarkdownContent(subscriptions, config);
+    let success = false;
+    if (subscriptions && subscriptions.length > 0) {
+      const distribution = distributeWechatBotNotifications(subscriptions, config);
+      for (const [url, items] of distribution.entries()) {
+        let wechatbotContent;
+        if (config.wechatBot?.msgType === 'markdown') {
+          wechatbotContent = formatWeChatMarkdownContent(items, config);
+        } else {
+          wechatbotContent = formatNotificationContent(items, config).replace(/(\**|\*|##|#|`)/g, '');
+        }
+        const target = url === '' ? undefined : url;
+        const s = await sendWechatBotNotification(title, wechatbotContent, config, target);
+        if (s) success = true;
+      }
     } else {
-      // 否则（文本模式或无订阅数据），剥离 Markdown 符号以防显示乱码
-      // 注意：如果是 Markdown 模式但无订阅数据（如测试消息），这里也会剥离符号，
-      // 如果希望测试消息也支持 Markdown，可以去掉 replace，但通常测试消息是纯文本。
-      wechatbotContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+      const globalWebhooks = (config.wechatBot?.webhook || '').split('|').map(s => s.trim()).filter(Boolean);
+      if (globalWebhooks.length === 0) globalWebhooks.push('');
+      const wechatbotContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+      for (const url of globalWebhooks) {
+        const target = url === '' ? undefined : url;
+        const s = await sendWechatBotNotification(title, wechatbotContent, config, target);
+        if (s) success = true;
+      }
     }
-    const success = await sendWechatBotNotification(title, wechatbotContent, config);
     results.push({ channel: 'wechatbot', success });
-    console.log(`${logPrefix} 发送企业微信机器人通知 ${success ? '成功' : '失败'}`);
+    console.log(`${logPrefix} 发送企业微信机器人通知 ${success ? '成功' : '部分/全部失败'}`);
   }
   if (config.enabledNotifiers.includes('email')) {
-    const emailContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
-    const success = await sendEmailNotification(title, emailContent, config);
+    let success = false;
+    if (subscriptions && subscriptions.length > 0) {
+      const distribution = distributeEmailNotifications(subscriptions, config);
+      for (const [email, items] of distribution.entries()) {
+        const emailContent = formatNotificationContent(items, config);
+        const target = email === '' ? undefined : email;
+        const s = await sendEmailNotification(title, emailContent, config, target);
+        if (s) success = true;
+      }
+    } else {
+      const globalEmails = (config.email?.toEmail || '').split(/[,;|]/).map(s => s.trim()).filter(Boolean);
+      if (globalEmails.length === 0) globalEmails.push('');
+      const emailContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+      for (const email of globalEmails) {
+        const target = email === '' ? undefined : email;
+        const s = await sendEmailNotification(title, emailContent, config, target);
+        if (s) success = true;
+      }
+    }
     results.push({ channel: 'email', success });
-    console.log(`${logPrefix} 发送邮件通知 ${success ? '成功' : '失败'}`);
+    console.log(`${logPrefix} 发送邮件通知 ${success ? '成功' : '部分/全部失败'}`);
   }
   if (config.enabledNotifiers.includes('bark')) {
     const barkContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
@@ -626,9 +720,10 @@ export async function sendBarkNotification(title: string, content: string, confi
 }
 
 // Email
-export async function sendEmailNotification(title: string, content: string, config: Config): Promise<boolean> {
+export async function sendEmailNotification(title: string, content: string, config: Config, recipientEmail?: string): Promise<boolean> {
   try {
-    if (!config.email?.resendApiKey || !config.email?.fromEmail || !config.email?.toEmail) {
+    const finalToEmail = recipientEmail || config.email?.toEmail;
+    if (!config.email?.resendApiKey || !config.email?.fromEmail || !finalToEmail) {
       console.error('[邮件通知] 通知未配置，缺少必要参数');
       return false;
     }
@@ -683,7 +778,7 @@ export async function sendEmailNotification(title: string, content: string, conf
       },
       body: JSON.stringify({
         from: fromEmail,
-        to: config.email.toEmail,
+        to: finalToEmail,
         subject: title,
         html: htmlContent,
         text: content
@@ -743,14 +838,15 @@ export async function sendWebhookNotification(title: string, content: string, co
 }
 
 // 企业微信机器人
-export async function sendWechatBotNotification(title: string, content: string, config: Config): Promise<boolean> {
+export async function sendWechatBotNotification(title: string, content: string, config: Config, webhookUrl?: string): Promise<boolean> {
   try {
-    if (!config.wechatBot?.webhook) {
+    const finalWebhook = webhookUrl || config.wechatBot?.webhook;
+    if (!finalWebhook) {
       console.error('[企业微信机器人] 未配置 Webhook URL');
       return false;
     }
 
-    const msgType = config.wechatBot.msgType || 'text';
+    const msgType = config.wechatBot?.msgType || 'text';
     let messageData: WeChatBotMessage;
 
     if (msgType === 'markdown') {
@@ -771,11 +867,11 @@ export async function sendWechatBotNotification(title: string, content: string, 
       };
     }
 
-    if (config.wechatBot.atAll === 'true') {
+    if (config.wechatBot?.atAll === 'true') {
       if (msgType === 'text' && messageData.msgtype === 'text') {
         messageData.text.mentioned_list = ['@all'];
       }
-    } else if (config.wechatBot.atMobiles) {
+    } else if (config.wechatBot?.atMobiles) {
       const mobiles = config.wechatBot.atMobiles.split(',').map((m: string) => m.trim()).filter((m: string) => m);
       if (mobiles.length > 0) {
         if (msgType === 'text' && messageData.msgtype === 'text') {
@@ -784,7 +880,7 @@ export async function sendWechatBotNotification(title: string, content: string, 
       }
     }
 
-    const response = await requestWithRetry(config.wechatBot.webhook, {
+    const response = await requestWithRetry(finalWebhook, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

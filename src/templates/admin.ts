@@ -374,6 +374,18 @@ export const adminPage = `
           <p class="mt-1 text-xs text-gray-500">仅对该订阅生效，用于指定推送给哪些 WeNotify 用户（使用 | 或 , 分隔）。留空则推给全局配置的用户。</p>
         </div>
 
+        <div>
+          <label for="wechatBotKeys" class="block text-sm font-medium text-gray-700 mb-1">企微机器人 Key (WeChat Bot Key)</label>
+          <input type="text" id="wechatBotKeys" placeholder="key1|key2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off">
+          <p class="mt-1 text-xs text-gray-500">仅对该订阅生效，指定推送给匹配 Key 的企微机器人（URL中 key= 后的部分）。留空则推给全局配置的所有机器人。</p>
+        </div>
+
+        <div>
+          <label for="emailAddresses" class="block text-sm font-medium text-gray-700 mb-1">邮件通知地址 (Email Addresses)</label>
+          <input type="text" id="emailAddresses" placeholder="a@b.com,c@d.com" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off">
+          <p class="mt-1 text-xs text-gray-500">仅对该订阅生效，指定推送给这些邮箱。留空则推给全局配置的收件人。</p>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
           <div class="flex items-end space-x-4 pb-2">
             <div class="flex items-center">
@@ -1152,6 +1164,8 @@ export const adminPage = `
              document.getElementById('reminderDays').value = sub.reminderDays !== undefined ? sub.reminderDays : 7;
              document.getElementById('dailyReminderTimes').value = (sub.dailyReminderTimes || []).join(',');
              document.getElementById('weNotifyUserIds').value = sub.weNotifyUserIds || '';
+             document.getElementById('wechatBotKeys').value = sub.wechatBotKeys || '';
+             document.getElementById('emailAddresses').value = sub.emailAddresses || '';
              document.getElementById('useLunar').checked = !!sub.useLunar;
              if (priceEl) priceEl.value = sub.price !== undefined ? String(sub.price) : '';
           }
@@ -1218,6 +1232,8 @@ export const adminPage = `
           return v ? v.split(',').map(s=>s.trim()).filter(s=>s.length>0) : []; 
         })(),
         weNotifyUserIds: document.getElementById('weNotifyUserIds').value.trim(),
+        wechatBotKeys: document.getElementById('wechatBotKeys').value.trim(),
+        emailAddresses: document.getElementById('emailAddresses').value.trim(),
         useLunar: document.getElementById('useLunar').checked,
         price: (function(){ const v = document.getElementById('price').value; return v ? parseFloat(v) : undefined; })()
       };

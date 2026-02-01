@@ -54,6 +54,8 @@ export const SubscriptionSchema = z.object({
   autoRenew: z.boolean().default(true),
   useLunar: z.boolean().optional().default(false),
   weNotifyUserIds: z.string().optional().default(''),
+  wechatBotKeys: z.string().optional().default(''),
+  emailAddresses: z.string().optional().default(''),
   createdAt: z.string().datetime().optional(),
   updatedAt: z.string().datetime().optional(),
 });
@@ -109,7 +111,7 @@ export const ConfigSchema = z.object({
   RESEND_API_KEY: z.string().optional().default(''),
   EMAIL_FROM: z.string().email().optional().or(z.literal('')).default(''),
   EMAIL_FROM_NAME: z.string().optional().default(''),
-  EMAIL_TO: z.string().email().optional().or(z.literal('')).default(''),
+  EMAIL_TO: z.string().optional().default(''),
   BARK_DEVICE_KEY: z.string().optional().default(''),
   BARK_SERVER: z.string().url().optional().default(CONFIG.DEFAULTS.BARK_SERVER),
   BARK_IS_ARCHIVE: z.string().optional().default('false'),

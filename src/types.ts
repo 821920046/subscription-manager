@@ -14,6 +14,8 @@ export interface Subscription {
   autoRenew: boolean;
   useLunar?: boolean;
   weNotifyUserIds?: string;
+  wechatBotKeys?: string;
+  emailAddresses?: string;
   createdAt?: string;
   updatedAt?: string;
   daysRemaining?: number; // Runtime calculated field
