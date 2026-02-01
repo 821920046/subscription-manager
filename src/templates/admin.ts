@@ -366,6 +366,15 @@ export const adminPage = `
             <p id="dailyReminderHelp" class="mt-1 text-xs text-gray-500">仅对该订阅生效，优先级高于全局“每日提醒时段”。格式 HH:mm，多个用逗号分隔</p>
             <p id="dailyReminderError" class="mt-1 text-xs text-red-600 hidden">格式错误，请使用 HH:mm，例如 08:00,12:30</p>
           </div>
+        </div>
+
+        <div>
+          <label for="weNotifyUserIds" class="block text-sm font-medium text-gray-700 mb-1">WeNotify 定向推送用户</label>
+          <input type="text" id="weNotifyUserIds" placeholder="user1|user2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off">
+          <p class="mt-1 text-xs text-gray-500">仅对该订阅生效，用于指定推送给哪些 WeNotify 用户（使用 | 或 , 分隔）。留空则推给全局配置的用户。</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
           <div class="flex items-end space-x-4 pb-2">
             <div class="flex items-center">
               <input type="checkbox" id="autoRenew" checked class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
@@ -1142,6 +1151,7 @@ export const adminPage = `
              document.getElementById('periodUnit').value = sub.periodUnit || 'month';
              document.getElementById('reminderDays').value = sub.reminderDays !== undefined ? sub.reminderDays : 7;
              document.getElementById('dailyReminderTimes').value = (sub.dailyReminderTimes || []).join(',');
+             document.getElementById('weNotifyUserIds').value = sub.weNotifyUserIds || '';
              document.getElementById('useLunar').checked = !!sub.useLunar;
              if (priceEl) priceEl.value = sub.price !== undefined ? String(sub.price) : '';
           }
@@ -1197,8 +1207,8 @@ export const adminPage = `
         notes: document.getElementById('notes').value,
         isActive: document.getElementById('isActive').checked,
         autoRenew: document.getElementById('autoRenew').checked,
-        startDate: document.getElementById('startDate').value,
-        expiryDate: document.getElementById('expiryDate').value,
+        startDate: (function(){ const v = document.getElementById('startDate').value; return v ? new Date(v).toISOString() : null; })(),
+        expiryDate: (function(){ const v = document.getElementById('expiryDate').value; return v ? new Date(v).toISOString() : ''; })(),
         periodValue: parseInt(document.getElementById('periodValue').value),
         periodUnit: document.getElementById('periodUnit').value,
         reminderDays: parseInt(document.getElementById('reminderDays').value),
@@ -1207,6 +1217,7 @@ export const adminPage = `
           v = normalizeTimeStr(v);
           return v ? v.split(',').map(s=>s.trim()).filter(s=>s.length>0) : []; 
         })(),
+        weNotifyUserIds: document.getElementById('weNotifyUserIds').value.trim(),
         useLunar: document.getElementById('useLunar').checked,
         price: (function(){ const v = document.getElementById('price').value; return v ? parseFloat(v) : undefined; })()
       };
