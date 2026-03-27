@@ -265,6 +265,42 @@ export function formatWeChatMarkdownContent(subscriptions: Subscription[], confi
 }
 
 /**
+ * 格式化企微机器人精简通知内容（避免微信端截断）
+ * 只保留：服务名、到期日期、状态，其他信息省略
+ */
+export function formatWechatBotCompactContent(subscriptions: Subscription[], config: Config): string {
+  const timezone = config.timezone || 'UTC';
+  let content = '';
+
+  for (const sub of subscriptions) {
+    // 状态判断
+    let statusText = '';
+    if (sub.daysRemaining === 0) {
+      statusText = '⚠️ 今天到期！';
+    } else if (sub.daysRemaining !== undefined && sub.daysRemaining < 0) {
+      statusText = `🚨 已过期${Math.abs(sub.daysRemaining)}天`;
+    } else {
+      statusText = `📅 还有${sub.daysRemaining}天`;
+    }
+
+    // 到期日期
+    const formattedExpiryDate = formatTimeInTimezone(new Date(sub.expiryDate), timezone, 'date');
+
+    // 备注（可选，有就显示）
+    const notesText = sub.notes ? ` | ${sub.notes}` : '';
+
+    // 每条订阅一行：服务名 + 到期日 + 状态 + 备注
+    content += `${sub.name} ${formattedExpiryDate} ${statusText}${notesText}\n`;
+  }
+
+  // 添加发送时间
+  const currentTime = formatTimeInTimezone(new Date(), timezone, 'datetime');
+  content += `\n⏰ ${currentTime}`;
+
+  return content;
+}
+
+/**
  * 格式化 WeNotify Edge 结构化通知内容 (JSON)
  */
 export function formatWeNotifyStructuredContent(subscriptions: Subscription[], config: Config): string {
@@ -479,7 +515,8 @@ export async function sendNotificationToAllChannels(title: string, commonContent
         if (config.wechatBot?.msgType === 'markdown') {
           wechatbotContent = formatWeChatMarkdownContent(items, config);
         } else {
-          wechatbotContent = formatNotificationContent(items, config).replace(/(\**|\*|##|#|`)/g, '');
+          // 使用精简格式，避免微信端截断
+          wechatbotContent = formatWechatBotCompactContent(items, config);
         }
         const target = url === '' ? undefined : url;
         const s = await sendWechatBotNotification(title, wechatbotContent, config, target);
@@ -488,7 +525,7 @@ export async function sendNotificationToAllChannels(title: string, commonContent
     } else {
       const globalWebhooks = (config.wechatBot?.webhook || '').split('|').map(s => s.trim()).filter(Boolean);
       if (globalWebhooks.length === 0) globalWebhooks.push('');
-      const wechatbotContent = commonContent.replace(/(\**|\*|##|#|`)/g, '');
+      const wechatbotContent = commonContent.replace(/(\**|\*|##|#|`)/g, '').slice(0, 500);
       for (const url of globalWebhooks) {
         const target = url === '' ? undefined : url;
         const s = await sendWechatBotNotification(title, wechatbotContent, config, target);
