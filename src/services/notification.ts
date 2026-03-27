@@ -513,7 +513,8 @@ export async function sendNotificationToAllChannels(title: string, commonContent
       for (const [url, items] of distribution.entries()) {
         let wechatbotContent;
         if (config.wechatBot?.msgType === 'markdown') {
-          wechatbotContent = formatWeChatMarkdownContent(items, config);
+          // markdown 模式也使用精简格式
+          wechatbotContent = formatWechatBotCompactContent(items, config);
         } else {
           // 使用精简格式，避免微信端截断
           wechatbotContent = formatWechatBotCompactContent(items, config);
