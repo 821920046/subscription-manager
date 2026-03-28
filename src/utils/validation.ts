@@ -99,6 +99,7 @@ export const ConfigSchema = z.object({
   WEBHOOK_METHOD: z.enum(['GET', 'POST', 'PUT', 'PATCH']).optional().default('POST'),
   WEBHOOK_HEADERS: z.string().optional().default(''),
   WEBHOOK_TEMPLATE: z.string().optional().default(''),
+  WEBHOOK_PAYLOAD_MODE: z.enum(['auto', 'compat', 'custom']).optional().default('auto'),
   SHOW_LUNAR: z.boolean().optional().default(false),
   WECHATBOT_WEBHOOK: z.string().url().optional().or(z.literal('')).default(''),
   WECHATBOT_MSG_TYPE: z.string().optional().default('text'),
