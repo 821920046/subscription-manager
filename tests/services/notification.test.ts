@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { sendNotificationToAllChannels, sendTelegramNotification, sendNotifyXNotification } from '../../src/services/notification';
+import {
+  sendNotificationToAllChannels,
+  sendTelegramNotification,
+  sendNotifyXNotification,
+  sendWebhookNotification,
+} from '../../src/services/notification';
 import { Config } from '../../src/types';
 
 // 模拟 KV Namespace
@@ -68,7 +73,8 @@ describe('Notification Service', () => {
         url: 'https://example.com/webhook',
         method: 'POST',
         headers: '{}',
-        template: '{}',
+        template: '',
+        payloadMode: 'auto',
       },
       email: {
         resendApiKey: 'test-key',
@@ -166,6 +172,88 @@ describe('Notification Service', () => {
       const result = await sendNotifyXNotification('title', 'content', 'description', mockConfig);
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe('sendWebhookNotification', () => {
+    it('应该对企业微信应用通知平台默认使用微信兼容文本格式', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+      } as any);
+      global.fetch = mockFetch;
+
+      const result = await sendWebhookNotification('测试标题', '测试内容', {
+        ...mockConfig,
+        webhook: {
+          url: 'https://push.wangwangit.com/api/send/test-key',
+          method: 'POST',
+          headers: '',
+          template: '',
+          payloadMode: 'auto',
+        },
+      });
+
+      expect(result).toBe(true);
+
+      const [, requestInit] = mockFetch.mock.calls[0];
+      expect(JSON.parse(requestInit.body)).toMatchObject({
+        title: '测试标题',
+        content: '测试内容',
+      });
+    });
+
+    it('应该在自动模式下把企微专属模板降级为纯文本', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+      } as any);
+      global.fetch = mockFetch;
+
+      const result = await sendWebhookNotification('测试标题', '测试内容', {
+        ...mockConfig,
+        webhook: {
+          url: 'https://example.com/webhook',
+          method: 'POST',
+          headers: '',
+          template: '{"msgtype":"template_card","template_card":{"main_title":{"title":"{{title}}"}}}',
+          payloadMode: 'auto',
+        },
+      });
+
+      expect(result).toBe(true);
+
+      const [, requestInit] = mockFetch.mock.calls[0];
+      expect(JSON.parse(requestInit.body)).toMatchObject({
+        title: '测试标题',
+        content: '测试内容',
+      });
+    });
+
+    it('应该在自定义模式下保留用户模板', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+      } as any);
+      global.fetch = mockFetch;
+
+      const result = await sendWebhookNotification('测试标题', '测试内容', {
+        ...mockConfig,
+        webhook: {
+          url: 'https://example.com/webhook',
+          method: 'POST',
+          headers: '',
+          template: '{"msgtype":"markdown","markdown":{"content":"{{title}}\\n{{content}}"}}',
+          payloadMode: 'custom',
+        },
+      });
+
+      expect(result).toBe(true);
+
+      const [, requestInit] = mockFetch.mock.calls[0];
+      expect(JSON.parse(requestInit.body)).toEqual({
+        msgtype: 'markdown',
+        markdown: {
+          content: '测试标题\n测试内容',
+        },
+      });
     });
   });
 
