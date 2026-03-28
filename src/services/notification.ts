@@ -88,6 +88,8 @@ type WeChatBotMessage =
   | { msgtype: 'text'; text: { content: string; mentioned_list?: string[]; mentioned_mobile_list?: string[] } }
   | { msgtype: 'markdown'; markdown: { content: string } };
 
+type WebhookPayloadMode = 'auto' | 'compat' | 'custom';
+
 interface WeChatTemplateData {
   thing01?: { value: string };
   thing02?: { value: string };
@@ -832,6 +834,62 @@ export async function sendEmailNotification(title: string, content: string, conf
 }
 
 // 企业微信应用通知 (Webhook)
+function normalizeWebhookText(value: string): string {
+  return value
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function buildCompatibleWebhookBody(title: string, content: string, timestamp: string): string {
+  return JSON.stringify({
+    title: normalizeWebhookText(title),
+    content: normalizeWebhookText(content),
+    timestamp,
+  });
+}
+
+function buildLegacyWebhookBody(title: string, content: string): string {
+  return JSON.stringify({
+    msgtype: 'text',
+    text: {
+      content: `${title}\n\n${content}`,
+    },
+  });
+}
+
+function renderWebhookTemplate(template: unknown, title: string, content: string, timestamp: string): string {
+  return JSON.stringify(template)
+    .replace(/{{title}}/g, title)
+    .replace(/{{content}}/g, content)
+    .replace(/{{timestamp}}/g, timestamp);
+}
+
+function getWebhookPayloadMode(config: Config): WebhookPayloadMode {
+  const mode = config.webhook?.payloadMode;
+  return mode === 'compat' || mode === 'custom' || mode === 'auto' ? mode : 'auto';
+}
+
+function isKnownWechatAppWebhook(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'push.wangwangit.com' || host.endsWith('.wangwangit.com');
+  } catch {
+    return false;
+  }
+}
+
+function hasWechatOnlyMessageType(template: unknown): boolean {
+  if (!template || typeof template !== 'object' || Array.isArray(template)) {
+    return false;
+  }
+
+  const msgType = (template as Record<string, unknown>).msgtype;
+  return typeof msgType === 'string' && msgType !== 'text';
+}
+
 export async function sendWebhookNotification(title: string, content: string, config: Config): Promise<boolean> {
   try {
     if (!config.webhook?.url) {
@@ -842,24 +900,19 @@ export async function sendWebhookNotification(title: string, content: string, co
     const method = config.webhook.method || 'POST';
     const headers = config.webhook.headers ? JSON.parse(config.webhook.headers) : { 'Content-Type': 'application/json' };
     const template = config.webhook.template ? JSON.parse(config.webhook.template) : null;
+    const payloadMode = getWebhookPayloadMode(config);
+    const timestamp = new Date().toISOString();
+    const shouldUseCompatiblePayload =
+      payloadMode === 'compat' ||
+      (payloadMode === 'auto' && (isKnownWechatAppWebhook(config.webhook.url) || hasWechatOnlyMessageType(template)));
 
-    let body;
-    if (template) {
-      // 使用模板替换变量
-      const templateStr = JSON.stringify(template);
-      const replacedStr = templateStr
-        .replace(/{{title}}/g, title)
-        .replace(/{{content}}/g, content)
-        .replace(/{{timestamp}}/g, new Date().toISOString());
-      body = replacedStr;
+    let body: string;
+    if (shouldUseCompatiblePayload) {
+      body = buildCompatibleWebhookBody(title, content, timestamp);
+    } else if (template) {
+      body = renderWebhookTemplate(template, title, content, timestamp);
     } else {
-      // 默认格式
-      body = JSON.stringify({
-        msgtype: 'text',
-        text: {
-          content: `${title}\n\n${content}`
-        }
-      });
+      body = buildLegacyWebhookBody(title, content);
     }
 
     const response = await requestWithRetry(config.webhook.url, {
