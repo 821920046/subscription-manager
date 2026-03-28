@@ -279,6 +279,15 @@ export const configPage = `
                 <textarea id="webhookTemplate" rows="4" placeholder='{"title": "{{title}}", "content": "{{content}}", "timestamp": "{{timestamp}}"}' class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
                 <p class="mt-1 text-sm text-gray-500">支持变量: {{title}}, {{content}}, {{timestamp}}。留空使用默认格式</p>
               </div>
+              <div>
+                <label for="webhookPayloadMode" class="block text-sm font-medium text-gray-700">发送格式</label>
+                <select id="webhookPayloadMode" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                  <option value="auto">自动兼容微信端（推荐）</option>
+                  <option value="compat">强制使用微信可读文本</option>
+                  <option value="custom">保留自定义模板/旧格式</option>
+                </select>
+                <p class="mt-1 text-sm text-gray-500">微信客户端只支持查看文本类应用消息。推荐使用“自动兼容微信端”，检测到企微卡片/Markdown 模板时会自动降级为纯文本。</p>
+              </div>
             </div>
             <div class="flex justify-end">
               <button type="button" id="testWebhookBtn" class="btn-secondary text-white px-4 py-2 rounded-md text-sm font-medium">
@@ -458,6 +467,7 @@ export const configPage = `
         document.getElementById('webhookMethod').value = config.WEBHOOK_METHOD || 'POST';
         document.getElementById('webhookHeaders').value = config.WEBHOOK_HEADERS || '';
         document.getElementById('webhookTemplate').value = config.WEBHOOK_TEMPLATE || '';
+        document.getElementById('webhookPayloadMode').value = config.WEBHOOK_PAYLOAD_MODE || 'auto';
         document.getElementById('showLunarGlobal').checked = config.SHOW_LUNAR === true;
         document.getElementById('wechatbotWebhook').value = config.WECHATBOT_WEBHOOK || '';
         document.getElementById('wechatbotMsgType').value = config.WECHATBOT_MSG_TYPE || 'text';
@@ -607,6 +617,7 @@ export const configPage = `
         WEBHOOK_METHOD: document.getElementById('webhookMethod').value,
         WEBHOOK_HEADERS: document.getElementById('webhookHeaders').value.trim(),
         WEBHOOK_TEMPLATE: document.getElementById('webhookTemplate').value.trim(),
+        WEBHOOK_PAYLOAD_MODE: document.getElementById('webhookPayloadMode').value,
         SHOW_LUNAR: document.getElementById('showLunarGlobal').checked,
         WECHATBOT_WEBHOOK: document.getElementById('wechatbotWebhook').value.trim(),
         WECHATBOT_MSG_TYPE: document.getElementById('wechatbotMsgType').value,
@@ -732,6 +743,7 @@ export const configPage = `
         config.WEBHOOK_METHOD = document.getElementById('webhookMethod').value;
         config.WEBHOOK_HEADERS = document.getElementById('webhookHeaders').value.trim();
         config.WEBHOOK_TEMPLATE = document.getElementById('webhookTemplate').value.trim();
+        config.WEBHOOK_PAYLOAD_MODE = document.getElementById('webhookPayloadMode').value;
 
         if (!config.WEBHOOK_URL) {
           showToast('请先填写 企业微信应用通知 URL', 'warning');
