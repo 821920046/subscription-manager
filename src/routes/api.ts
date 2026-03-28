@@ -270,6 +270,7 @@ async function handleConfigApi(ctx: ApiContext, method: string): Promise<Respons
                 WEBHOOK_METHOD: body.WEBHOOK_METHOD || 'POST',
                 WEBHOOK_HEADERS: body.WEBHOOK_HEADERS || '',
                 WEBHOOK_TEMPLATE: body.WEBHOOK_TEMPLATE || '',
+                WEBHOOK_PAYLOAD_MODE: body.WEBHOOK_PAYLOAD_MODE || 'auto',
                 SHOW_LUNAR: body.SHOW_LUNAR === true,
                 WECHATBOT_WEBHOOK: body.WECHATBOT_WEBHOOK || '',
                 WECHATBOT_MSG_TYPE: body.WECHATBOT_MSG_TYPE || 'text',
@@ -416,6 +417,7 @@ async function handleTestNotification(ctx: ApiContext): Promise<Response> {
                     method: body.WEBHOOK_METHOD || ctx.config.webhook?.method || 'POST',
                     headers: body.WEBHOOK_HEADERS || ctx.config.webhook?.headers || '',
                     template: body.WEBHOOK_TEMPLATE || ctx.config.webhook?.template || '',
+                    payloadMode: body.WEBHOOK_PAYLOAD_MODE || ctx.config.webhook?.payloadMode || 'auto',
                 };
                 success = await sendWebhookNotification('测试通知', '测试通知...', tempConfig);
                 break;
