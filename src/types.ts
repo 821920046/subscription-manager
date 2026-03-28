@@ -53,6 +53,7 @@ export interface WebhookConfig {
   method: string;
   headers?: string;
   template?: string;
+  payloadMode?: 'auto' | 'compat' | 'custom';
 }
 
 export interface EmailConfig {
