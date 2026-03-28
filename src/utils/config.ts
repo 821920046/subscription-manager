@@ -80,6 +80,13 @@ export async function getConfig(env: Env): Promise<Config> {
       }
     }
 
+    const webhookPayloadMode =
+      config.WEBHOOK_PAYLOAD_MODE === 'compat' ||
+      config.WEBHOOK_PAYLOAD_MODE === 'custom' ||
+      config.WEBHOOK_PAYLOAD_MODE === 'auto'
+        ? config.WEBHOOK_PAYLOAD_MODE
+        : 'auto';
+
     const finalConfig: Config = {
       adminUsername: (typeof config.ADMIN_USERNAME === 'string' ? config.ADMIN_USERNAME : 'admin') || 'admin',
       adminPassword: (typeof config.ADMIN_PASSWORD === 'string' ? config.ADMIN_PASSWORD : 'password') || 'password',
@@ -129,6 +136,7 @@ export async function getConfig(env: Env): Promise<Config> {
         method: (typeof config.WEBHOOK_METHOD === 'string' ? config.WEBHOOK_METHOD : undefined) || 'POST',
         headers: (typeof config.WEBHOOK_HEADERS === 'string' ? config.WEBHOOK_HEADERS : undefined) || '',
         template: (typeof config.WEBHOOK_TEMPLATE === 'string' ? config.WEBHOOK_TEMPLATE : undefined) || '',
+        payloadMode: webhookPayloadMode,
       },
 
       email: {
@@ -169,7 +177,7 @@ export async function getConfig(env: Env): Promise<Config> {
       wenotify: { url: '', token: '', userid: '', templateId: '', path: '/wxsend' },
       wechatBot: { webhook: '', msgType: 'text', atMobiles: '', atAll: 'false' },
       wechatOfficialAccount: { appId: '', appSecret: '', templateId: '', userIds: '' },
-      webhook: { url: '', method: 'POST', headers: '', template: '' },
+      webhook: { url: '', method: 'POST', headers: '', template: '', payloadMode: 'auto' },
       email: { resendApiKey: '', fromEmail: '', toEmail: '' },
       bark: { server: 'https://api.day.app', deviceKey: '', isArchive: 'false' },
     };
