@@ -310,7 +310,7 @@ export const configPage = `
                   <option value="text">文本消息</option>
                   <option value="markdown">Markdown消息</option>
                 </select>
-                <p class="mt-1 text-sm text-gray-500">选择发送的消息格式类型</p>
+                <p class="mt-1 text-sm text-gray-500">若需在个人微信直接查看，建议选择“文本消息”（超长内容会自动切分发送）。Markdown 仅支持在企微客户端查看。</p>
               </div>
               <div>
                 <label for="wechatbotAtMobiles" class="block text-sm font-medium text-gray-700">@手机号 (可选)</label>

@@ -446,6 +446,27 @@ export function distributeEmailNotifications(subscriptions: Subscription[], conf
 }
 
 /**
+ * 辅助函数：将长文本按行分割成多个较短的块
+ * 大小限制设为 1000 字符 (对于文本消息足够安全)
+ */
+function chunkMessage(content: string, limit: number = 1000): string[] {
+  const chunks: string[] = [];
+  let currentChunk = '';
+  const lines = content.split('\n');
+  for (const line of lines) {
+    if (currentChunk.length + line.length + 1 > limit && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      currentChunk = '';
+    }
+    currentChunk += (currentChunk ? '\n' : '') + line;
+  }
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk.trim());
+  }
+  return chunks;
+}
+
+/**
  * 发送通知到所有启用的渠道
  */
 export async function sendNotificationToAllChannels(title: string, commonContent: string, config: Config, env: Env | null = null, logPrefix = '[定时任务]', subscriptions: Subscription[] | null = null): Promise<void> {
@@ -515,11 +536,11 @@ export async function sendNotificationToAllChannels(title: string, commonContent
       for (const [url, items] of distribution.entries()) {
         let wechatbotContent;
         if (config.wechatBot?.msgType === 'markdown') {
-          // markdown 模式也使用精简格式
-          wechatbotContent = formatWechatBotCompactContent(items, config);
+          // markdown 模式使用详细格式，并在发送时自动切片
+          wechatbotContent = formatWeChatMarkdownContent(items, config);
         } else {
-          // 使用精简格式，避免微信端截断
-          wechatbotContent = formatWechatBotCompactContent(items, config);
+          // 纯文本下也使用详细格式，利用切片机制避免微信端截断和显示异常
+          wechatbotContent = formatNotificationContent(items, config);
         }
         const target = url === '' ? undefined : url;
         const s = await sendWechatBotNotification(title, wechatbotContent, config, target);
@@ -906,22 +927,35 @@ export async function sendWebhookNotification(title: string, content: string, co
       payloadMode === 'compat' ||
       (payloadMode === 'auto' && (isKnownWechatAppWebhook(config.webhook.url) || hasWechatOnlyMessageType(template)));
 
-    let body: string;
-    if (shouldUseCompatiblePayload) {
-      body = buildCompatibleWebhookBody(title, content, timestamp);
-    } else if (template) {
-      body = renderWebhookTemplate(template, title, content, timestamp);
-    } else {
-      body = buildLegacyWebhookBody(title, content);
+    let success = true;
+    const chunks = chunkMessage(content, 1000); // 长文本将被拆分为多条，避免微信客户端报错
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkTitle = chunks.length > 1 ? `${title} (${i + 1}/${chunks.length})` : title;
+      const chunkContent = chunks[i];
+
+      let body: string;
+      if (shouldUseCompatiblePayload) {
+        body = buildCompatibleWebhookBody(chunkTitle, chunkContent, timestamp);
+      } else if (template) {
+        body = renderWebhookTemplate(template, chunkTitle, chunkContent, timestamp);
+      } else {
+        body = buildLegacyWebhookBody(chunkTitle, chunkContent);
+      }
+
+      const response = await requestWithRetry(config.webhook.url, {
+        method: method,
+        headers: headers,
+        body: method !== 'GET' ? body : undefined
+      }, 2, 8000);
+
+      if (!response.ok) {
+        success = false;
+        console.error(`[企业微信应用通知] chunk ${i + 1} 发送失败`);
+      }
     }
 
-    const response = await requestWithRetry(config.webhook.url, {
-      method: method,
-      headers: headers,
-      body: method !== 'GET' ? body : undefined
-    }, 2, 8000);
-
-    return response.ok;
+    return success;
   } catch (error) {
     console.error('[企业微信应用通知] 发送失败:', error);
     return false;
@@ -938,58 +972,69 @@ export async function sendWechatBotNotification(title: string, content: string, 
     }
 
     const msgType = config.wechatBot?.msgType || 'text';
-    let messageData: WeChatBotMessage;
+    const chunks = chunkMessage(content, 1000); // 长文本将被拆分为多条，避免微信客户端报错
+    let success = true;
 
-    if (msgType === 'markdown') {
-      const markdownContent = `### ${title}\n\n${content}`;
-      messageData = {
-        msgtype: 'markdown',
-        markdown: {
-          content: markdownContent
-        }
-      };
-    } else {
-      const textContent = `${title}\n\n${content}`;
-      messageData = {
-        msgtype: 'text',
-        text: {
-          content: textContent
-        }
-      };
-    }
+    for (let i = 0; i < chunks.length; i++) {
+      let messageData: WeChatBotMessage;
+      const chunkTitle = chunks.length > 1 ? `${title} (${i + 1}/${chunks.length})` : title;
+      const chunkContent = chunks[i];
 
-    if (config.wechatBot?.atAll === 'true') {
-      if (msgType === 'text' && messageData.msgtype === 'text') {
-        messageData.text.mentioned_list = ['@all'];
+      if (msgType === 'markdown') {
+        const markdownContent = `### ${chunkTitle}\n\n${chunkContent}`;
+        messageData = {
+          msgtype: 'markdown',
+          markdown: {
+            content: markdownContent
+          }
+        };
+      } else {
+        const textContent = `${chunkTitle}\n\n${chunkContent}`;
+        messageData = {
+          msgtype: 'text',
+          text: {
+            content: textContent
+          }
+        };
       }
-    } else if (config.wechatBot?.atMobiles) {
-      const mobiles = config.wechatBot.atMobiles.split(',').map((m: string) => m.trim()).filter((m: string) => m);
-      if (mobiles.length > 0) {
+
+      if (config.wechatBot?.atAll === 'true') {
         if (msgType === 'text' && messageData.msgtype === 'text') {
-          messageData.text.mentioned_mobile_list = mobiles;
+          messageData.text.mentioned_list = ['@all'];
+        }
+      } else if (config.wechatBot?.atMobiles) {
+        const mobiles = config.wechatBot.atMobiles.split(',').map((m: string) => m.trim()).filter((m: string) => m);
+        if (mobiles.length > 0) {
+          if (msgType === 'text' && messageData.msgtype === 'text') {
+            messageData.text.mentioned_mobile_list = mobiles;
+          }
         }
       }
-    }
 
-    const response = await requestWithRetry(finalWebhook, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(messageData)
-    }, 2, 8000);
+      const response = await requestWithRetry(finalWebhook, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(messageData)
+      }, 2, 8000);
 
-    const responseText = await response.text();
-    if (response.ok) {
-      try {
-        const result = JSON.parse(responseText) as WeChatBotResponse;
-        return result.errcode === 0;
-      } catch (parseError) {
-        return false;
+      const responseText = await response.text();
+      if (response.ok) {
+        try {
+          const result = JSON.parse(responseText) as WeChatBotResponse;
+          if (result.errcode !== 0) {
+            success = false;
+            console.error(`[企业微信机器人] chunk ${i + 1} 返回错误码: ${result.errcode}`);
+          }
+        } catch (parseError) {
+          success = false;
+        }
+      } else {
+        success = false;
       }
-    } else {
-      return false;
     }
+    return success;
   } catch (error) {
     console.error('[企业微信机器人] 发送通知失败:', error);
     return false;
