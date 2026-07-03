@@ -19,6 +19,11 @@ export const SECURITY_HEADERS: Record<string, string> = {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     // 权限策略
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    // 内容安全策略（保守子集）：不限制 script/style 来源以兼容现有内联脚本与 CDN，
+    // 但禁止被 iframe 嵌套、限制 base/表单/插件，缓解点击劫持与注入。
+    // （完整的 script-src 策略需前端去内联化后再开启）
+    'Content-Security-Policy':
+        "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
 };
 
 /**

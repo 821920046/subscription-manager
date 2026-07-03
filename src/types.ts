@@ -121,6 +121,12 @@ export interface DebugInfo {
   jwtSecretLength: number;
 }
 
+export interface KVListResult {
+  keys: Array<{ name: string; expiration?: number; metadata?: unknown }>;
+  list_complete: boolean;
+  cursor?: string;
+}
+
 export interface KVNamespace {
   get(key: string): Promise<string | null>;
   put(
@@ -129,4 +135,5 @@ export interface KVNamespace {
     options?: { expirationTtl?: number; expiration?: number }
   ): Promise<void>;
   delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<KVListResult>;
 }
