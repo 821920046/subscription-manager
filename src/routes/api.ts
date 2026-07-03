@@ -17,7 +17,7 @@ import {
     sendBarkNotification,
     formatNotificationContent,
 } from '../services/notification';
-import { getConfig, getRawConfig } from '../utils/config';
+import { getConfig, getRawConfig, clearConfigCache } from '../utils/config';
 import {
     generateJWT,
     verifyJWT,
@@ -54,6 +54,46 @@ interface ApiContext {
     ip: string;
 }
 
+// 含敏感凭据的配置键：GET 时以掩码占位回传，POST/测试时若仍为掩码则视为“未修改”
+const SECRET_CONFIG_KEYS = [
+    'TG_BOT_TOKEN',
+    'NOTIFYX_API_KEY',
+    'WENOTIFY_TOKEN',
+    'WECHAT_OA_APPSECRET',
+    'RESEND_API_KEY',
+    'BARK_DEVICE_KEY',
+] as const;
+const SECRET_MASK = '__SECRET_UNCHANGED__';
+
+/**
+ * CSRF 纵深防御：校验写请求的 Origin 是否与当前主机同源。
+ * 无 Origin 头（多为非浏览器客户端）放行；浏览器发起的跨站写请求必带 Origin。
+ */
+function isSameOrigin(ctx: ApiContext): boolean {
+    const origin = ctx.request.headers.get('Origin');
+    if (!origin) return true;
+    try {
+        return new URL(origin).host === ctx.url.host;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * 健康检查端点（公开，不含任何敏感信息）
+ */
+function handleHealth(ctx: ApiContext): Response {
+    return jsonResponse(
+        {
+            status: 'ok',
+            kvBound: !!ctx.env.SUBSCRIPTIONS_KV,
+            timestamp: new Date().toISOString(),
+        },
+        200,
+        { 'Cache-Control': 'no-store' }
+    );
+}
+
 /**
  * 处理 API 请求
  */
@@ -79,16 +119,29 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
         return handleLogout(ctx);
     }
 
+    if (path === '/health' && method === 'GET') {
+        return handleHealth(ctx);
+    }
+
     if (path.startsWith('/notify/') && method === 'POST') {
         return handleThirdPartyNotify(ctx);
     }
 
     // 需要认证的路由
     const token = getCookieValue(request.headers.get('Cookie'), 'token');
-    const user = token ? await verifyJWT(token, config.jwtSecret!) : null;
+    let user = token ? await verifyJWT(token, config.jwtSecret!) : null;
+    // 服务端会话吸销：登出后签发时间早于吸销点的 token 视为失效
+    if (user && (config.tokenValidFrom || 0) > (user.iat || 0)) {
+        user = null;
+    }
 
     if (!user) {
         return errorResponse('Unauthorized', 401);
+    }
+
+    // CSRF 纵深防御：对基于 Cookie 鉴权的写操作校验同源
+    if ((method === 'POST' || method === 'PUT' || method === 'DELETE') && !isSameOrigin(ctx)) {
+        return errorResponse('Cross-origin request forbidden', 403);
     }
 
     // 认证后的路由
@@ -110,6 +163,10 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
 
     if (path.startsWith('/subscriptions/')) {
         return handleSubscriptionByIdApi(ctx);
+    }
+
+    if (path === '/export' && method === 'GET') {
+        return handleExport(ctx);
     }
 
     return errorResponse('Not Found', 404);
@@ -190,7 +247,16 @@ async function handleLogin(ctx: ApiContext): Promise<Response> {
 /**
  * 登出处理
  */
-function handleLogout(ctx: ApiContext): Response {
+async function handleLogout(ctx: ApiContext): Promise<Response> {
+    // 服务端吸销：将 TOKEN_VALID_FROM 置为当前时间，使所有已签发的旧 token 立即失效
+    try {
+        const raw = await getRawConfig(ctx.env);
+        raw.TOKEN_VALID_FROM = Math.floor(Date.now() / 1000);
+        await ctx.env.SUBSCRIPTIONS_KV.put('config', JSON.stringify(raw));
+        clearConfigCache();
+    } catch (e) {
+        console.error('[Logout] 写入吸销时间失败', e);
+    }
     const secureFlag = ctx.url.protocol === 'https:' ? '; Secure' : '';
     return redirectResponse('/', 302, {
         'Set-Cookie': `token=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${secureFlag}`,
@@ -254,6 +320,12 @@ async function handleConfigApi(ctx: ApiContext, method: string): Promise<Respons
         delete safeConfig.JWT_SECRET;
         delete safeConfig.ADMIN_PASSWORD;
         delete safeConfig.THIRD_PARTY_TOKEN;
+        // 敏感凭据不回传明文：非空则以掩码占位，前端原样回填；保存/测试时掩码会被视为“未修改”
+        for (const key of SECRET_CONFIG_KEYS) {
+            if (typeof safeConfig[key] === 'string' && (safeConfig[key] as string).length > 0) {
+                safeConfig[key] = SECRET_MASK;
+            }
+        }
         // 配置中含敏感凭据，禁止中间缓存/浏览器缓存
         return jsonResponse(safeConfig, 200, { 'Cache-Control': 'no-store' });
     }
@@ -270,12 +342,18 @@ async function handleConfigApi(ctx: ApiContext, method: string): Promise<Respons
             const updatedConfig: Record<string, unknown> = { ...currentRawConfig };
             for (const key of providedKeys) {
                 if (key === 'ADMIN_PASSWORD') continue; // 密码单独处理
-                if (key in bodyRecord) {
-                    updatedConfig[key] = bodyRecord[key];
+                if (!(key in bodyRecord)) continue;
+                // 敏感字段仍为掩码占位 => 用户未修改，保留原值
+                if (
+                    (SECRET_CONFIG_KEYS as readonly string[]).includes(key) &&
+                    bodyRecord[key] === SECRET_MASK
+                ) {
+                    continue;
                 }
+                updatedConfig[key] = bodyRecord[key];
             }
 
-            // 管理员密码：仅在显式提供且非空时更新，并以 WebCrypto PBKDF2 加盐哈希后存储
+            // 管理员密码：仅在显式提供且非空时更新，并以 WebCrypto PBKDF2 ���盐哈希后存储
             if (typeof body.ADMIN_PASSWORD === 'string' && body.ADMIN_PASSWORD.length > 0) {
                 updatedConfig.ADMIN_PASSWORD = await hashPasswordPBKDF2(body.ADMIN_PASSWORD);
             }
@@ -362,6 +440,11 @@ async function handleTestNotification(ctx: ApiContext): Promise<Response> {
         const json = await ctx.request.json();
         // 使用 Zod 验证
         const body = await TestNotificationSchema.parseAsync(json);
+        // 掩码占位视为“未修改”，回退到已保存的凭据
+        const bodyRec = body as Record<string, unknown>;
+        for (const key of SECRET_CONFIG_KEYS) {
+            if (bodyRec[key] === SECRET_MASK) bodyRec[key] = '';
+        }
 
         let success = false;
         const tempConfig = { ...ctx.config };
@@ -461,6 +544,25 @@ async function handleTestNotification(ctx: ApiContext): Promise<Response> {
         const message = error instanceof Error ? error.message : '未知错误';
         return jsonResponse({ success: false, message }, 200);
     }
+}
+
+/**
+ * 导出/备份所有订阅（下载 JSON）
+ */
+async function handleExport(ctx: ApiContext): Promise<Response> {
+    const service = new SubscriptionService(ctx.env);
+    const subscriptions = await service.getAllSubscriptions();
+    const payload = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        count: subscriptions.length,
+        subscriptions,
+    };
+    const date = new Date().toISOString().slice(0, 10);
+    return jsonResponse(payload, 200, {
+        'Cache-Control': 'no-store',
+        'Content-Disposition': `attachment; filename="subscriptions-backup-${date}.json"`,
+    });
 }
 
 /**

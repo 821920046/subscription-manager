@@ -99,6 +99,19 @@ interface WeChatTemplateData {
   [key: string]: { value: string } | undefined;
 }
 
+// 多个通知格式化函数共用的小工具（保持输出与原内联实现逐字一致）
+const PERIOD_UNIT_LABEL: Record<string, string> = { day: '天', month: '月', year: '年' };
+
+function getTypeText(sub: Subscription): string {
+  return sub.customType || '其他';
+}
+
+function formatPeriodText(sub: Subscription): string {
+  return sub.periodValue && sub.periodUnit
+    ? `(周期: ${sub.periodValue} ${PERIOD_UNIT_LABEL[sub.periodUnit] || sub.periodUnit})`
+    : '';
+}
+
 /**
  * 获取微信公众号 Access Token
  */
@@ -133,8 +146,8 @@ export function formatNotificationContent(subscriptions: Subscription[], config:
   let content = '';
 
   for (const sub of subscriptions) {
-    const typeText = sub.customType || '其他';
-    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${{ day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
+    const typeText = getTypeText(sub);
+    const periodText = formatPeriodText(sub);
 
     // 格式化到期日期（使用所选时区）
     const expiryDateObj = new Date(sub.expiryDate);
@@ -200,8 +213,8 @@ export function formatWeChatMarkdownContent(subscriptions: Subscription[], confi
   let content = '';
 
   for (const sub of subscriptions) {
-    const typeText = sub.customType || '其他';
-    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${{ day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
+    const typeText = getTypeText(sub);
+    const periodText = formatPeriodText(sub);
 
     // 格式化到期日期（使用所选时区）
     const expiryDateObj = new Date(sub.expiryDate);
@@ -311,8 +324,8 @@ export function formatWeNotifyStructuredContent(subscriptions: Subscription[], c
   const timezone = config.timezone || 'UTC';
 
   const items = subscriptions.map(sub => {
-    const typeText = sub.customType || '其他';
-    const periodText = (sub.periodValue && sub.periodUnit) ? `(周期: ${sub.periodValue} ${{ day: '天', month: '月', year: '年' }[sub.periodUnit] || sub.periodUnit})` : '';
+    const typeText = getTypeText(sub);
+    const periodText = formatPeriodText(sub);
 
     const expiryDateObj = new Date(sub.expiryDate);
     const formattedExpiryDate = formatTimeInTimezone(expiryDateObj, timezone, 'date');

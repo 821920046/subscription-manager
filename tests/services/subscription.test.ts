@@ -20,6 +20,13 @@ function createMockKV() {
         async delete(key: string): Promise<void> {
             store.delete(key);
         },
+        async list(options?: { prefix?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean }> {
+            const prefix = options?.prefix || '';
+            const keys = Array.from(store.keys())
+                .filter((k) => k.startsWith(prefix))
+                .map((name) => ({ name }));
+            return { keys, list_complete: true };
+        },
     };
 }
 

@@ -19,7 +19,11 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
         const url = new URL(request.url);
         const token = getCookieValue(request.headers.get('Cookie'), 'token');
         const config = await getConfig(env);
-        const user = token ? await verifyJWT(token, config.jwtSecret!) : null;
+        let user = token ? await verifyJWT(token, config.jwtSecret!) : null;
+        // 服务端会话吸销：登出后签发时间早于吸销点的 token 视为失效
+        if (user && (config.tokenValidFrom || 0) > (user.iat || 0)) {
+            user = null;
+        }
 
         if (!user) {
             return redirectResponse('/');

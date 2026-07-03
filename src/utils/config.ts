@@ -98,6 +98,7 @@ export async function getConfig(env: Env): Promise<Config> {
       adminPassword: (typeof config.ADMIN_PASSWORD === 'string' ? config.ADMIN_PASSWORD : 'password') || 'password',
       jwtSecret: jwtSecret || generateRandomSecret(),
       thirdPartyToken: (typeof config.THIRD_PARTY_TOKEN === 'string' ? config.THIRD_PARTY_TOKEN : undefined) || generateRandomSecret(),
+      tokenValidFrom: typeof config.TOKEN_VALID_FROM === 'number' ? config.TOKEN_VALID_FROM : 0,
       timezone: (typeof config.TIMEZONE === 'string' ? config.TIMEZONE : undefined) || 'UTC',
       reminderTimes: (typeof config.REMINDER_TIMES === 'string' ? config.REMINDER_TIMES : '')
         .split(',')
@@ -175,6 +176,7 @@ export async function getConfig(env: Env): Promise<Config> {
       adminPassword: 'password',
       jwtSecret: defaultJwtSecret,
       thirdPartyToken: generateRandomSecret(),
+      tokenValidFrom: 0,
       timezone: 'UTC',
       showLunarGlobal: true,
       enabledNotifiers: ['notifyx'],

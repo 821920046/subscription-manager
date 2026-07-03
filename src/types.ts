@@ -87,6 +87,7 @@ export interface Config {
   adminPassword?: string;
   jwtSecret?: string;
   thirdPartyToken?: string; // 第三方通知 API 专用 Token
+  tokenValidFrom?: number; // JWT 最早有效签发时间（秒）；登出后置为当前时间以吸销旧会话
   timezone?: string;
   reminderTimes?: string[];
   showLunarGlobal?: boolean;
@@ -121,6 +122,12 @@ export interface DebugInfo {
   jwtSecretLength: number;
 }
 
+export interface KVListResult {
+  keys: Array<{ name: string; expiration?: number; metadata?: unknown }>;
+  list_complete: boolean;
+  cursor?: string;
+}
+
 export interface KVNamespace {
   get(key: string): Promise<string | null>;
   put(
@@ -129,4 +136,5 @@ export interface KVNamespace {
     options?: { expirationTtl?: number; expiration?: number }
   ): Promise<void>;
   delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<KVListResult>;
 }
