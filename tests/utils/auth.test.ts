@@ -112,6 +112,16 @@ describe('Auth Service', () => {
       expect(result?.iat).toBeGreaterThan(0);
     });
 
+    it('应该支持非 ASCII（中文）用户名（UTF-8 修复）', async () => {
+      const username = '伟 王';
+      const secret = 'test-secret-key-12345678901234567890';
+      const token = await generateJWT(username, secret);
+      const result = await verifyJWT(token, secret);
+
+      expect(result).not.toBeNull();
+      expect(result?.username).toBe(username);
+    });
+
     it('应该拒绝无效的 JWT token', async () => {
       const username = 'testuser';
       const secret = 'test-secret-key-12345678901234567890';

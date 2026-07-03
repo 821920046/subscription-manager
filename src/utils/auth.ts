@@ -16,9 +16,59 @@ export interface JWTPayload {
 }
 
 /**
- * 默认 JWT 过期时间（秒）- 24小时
+ * 默认 JWT 过期时间（秒）- 24 小时
  */
 const DEFAULT_JWT_EXPIRY = 86400;
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+/**
+ * base64url 编码（支持任意字节，UTF-8 安全）
+ */
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
+ * base64url 解码为字节数组
+ */
+function base64UrlDecode(input: string): Uint8Array {
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '==='.slice((normalized.length + 3) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function encodeJsonSegment(value: unknown): string {
+  return base64UrlEncode(textEncoder.encode(JSON.stringify(value)));
+}
+
+function decodeJsonSegment<T>(segment: string): T {
+  return JSON.parse(textDecoder.decode(base64UrlDecode(segment))) as T;
+}
+
+/**
+ * 常数时间字符串比较，防止时序攻击（用于签名/令牌比对）。
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
 
 /**
  * 密码哈希
@@ -36,10 +86,7 @@ export async function hashPassword(password: string): Promise<string> {
 /**
  * 验证密码
  */
-export async function verifyPassword(
-  password: string,
-  hashedPassword: string
-): Promise<boolean> {
+export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
   try {
     return await bcrypt.compare(password, hashedPassword);
   } catch (error) {
@@ -57,8 +104,8 @@ export function validateJWTSecret(secret: string): boolean {
 
 export const CryptoJS = {
   HmacSHA256: async function (message: string, key: string): Promise<string> {
-    const keyData = new TextEncoder().encode(key);
-    const messageData = new TextEncoder().encode(message);
+    const keyData = textEncoder.encode(key);
+    const messageData = textEncoder.encode(message);
 
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
@@ -75,10 +122,9 @@ export const CryptoJS = {
 };
 
 /**
- * 生成随机密钥
+ * 生成随机密钥（使用 Web Crypto 安全随机数）
  */
 export function generateRandomSecret(): string {
-  // Use Web Crypto API for secure random generation
   const array = new Uint8Array(64);
   crypto.getRandomValues(array);
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
@@ -89,13 +135,80 @@ export function generateRandomSecret(): string {
   return result;
 }
 
+// 标准 base64 编解码（用于 PBKDF2 盐/哈希存储）
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/** PBKDF2 迭代次数（WebCrypto 原生实现，在 Workers 上很快） */
+const PBKDF2_ITERATIONS = 100000;
+
 /**
- * 生成 JWT Token
- *
- * @param username - 用户名
- * @param secret - JWT 密钥
- * @param expiresIn - 过期时间（秒），默认 24 小时
- * @returns JWT Token
+ * 使用 WebCrypto PBKDF2 对密码加盐哈希（Cloudflare Workers 原生支持，无需 bcrypt 的高 CPU 开销）。
+ * 返回形如 `PBKDF2:<iterations>:<saltBase64>:<hashBase64>` 的字符串。
+ */
+export async function hashPasswordPBKDF2(password: string): Promise<string> {
+  const salt = new Uint8Array(16);
+  crypto.getRandomValues(salt);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    textEncoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    keyMaterial,
+    256
+  );
+  return `PBKDF2:${PBKDF2_ITERATIONS}:${bytesToBase64(salt)}:${bytesToBase64(new Uint8Array(bits))}`;
+}
+
+/**
+ * 验证 PBKDF2 哈希密码（常数时间比较）。
+ */
+export async function verifyPasswordPBKDF2(password: string, stored: string): Promise<boolean> {
+  try {
+    const parts = stored.split(':');
+    if (parts.length !== 4 || parts[0] !== 'PBKDF2') return false;
+    const iterations = parseInt(parts[1], 10);
+    if (!Number.isFinite(iterations) || iterations <= 0) return false;
+    const salt = base64ToBytes(parts[2]);
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      textEncoder.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveBits']
+    );
+    const bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
+      keyMaterial,
+      256
+    );
+    return timingSafeEqual(bytesToBase64(new Uint8Array(bits)), parts[3]);
+  } catch (error) {
+    Logger.error('[PBKDF2] 验证失败', error);
+    return false;
+  }
+}
+
+/**
+ * 生成 JWT Token（base64url + UTF-8 安全，支持中文等非 ASCII 用户名）
  */
 export async function generateJWT(
   username: string,
@@ -110,8 +223,8 @@ export async function generateJWT(
     exp: now + expiresIn,
   };
 
-  const headerBase64 = btoa(JSON.stringify(header));
-  const payloadBase64 = btoa(JSON.stringify(payload));
+  const headerBase64 = encodeJsonSegment(header);
+  const payloadBase64 = encodeJsonSegment(payload);
 
   const signatureInput = headerBase64 + '.' + payloadBase64;
   const signature = await CryptoJS.HmacSHA256(signatureInput, secret);
@@ -122,8 +235,6 @@ export async function generateJWT(
 /**
  * 验证 JWT Token
  *
- * @param token - JWT Token
- * @param secret - JWT 密钥
  * @returns JWT Payload 或 null（验证失败）
  */
 export async function verifyJWT(
@@ -132,13 +243,11 @@ export async function verifyJWT(
 ): Promise<JWTPayload | null> {
   try {
     if (!token || !secret) {
-      console.log('[JWT] Token或Secret为空');
       return null;
     }
 
     const parts = token.split('.');
     if (parts.length !== 3) {
-      console.log('[JWT] Token格式错误，部分数量:', parts.length);
       return null;
     }
 
@@ -146,24 +255,22 @@ export async function verifyJWT(
     const signatureInput = headerBase64 + '.' + payloadBase64;
     const expectedSignature = await CryptoJS.HmacSHA256(signatureInput, secret);
 
-    if (signature !== expectedSignature) {
-      console.log('[JWT] 签名验证失败');
+    // 常数时间比较，防止时序攻击
+    if (!timingSafeEqual(signature, expectedSignature)) {
       return null;
     }
 
-    const payload = JSON.parse(atob(payloadBase64)) as JWTPayload;
+    const payload = decodeJsonSegment<JWTPayload>(payloadBase64);
 
     // 验证过期时间
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) {
-      console.log('[JWT] Token已过期，过期时间:', new Date(payload.exp * 1000).toISOString());
       return null;
     }
 
-    console.log('[JWT] 验证成功，用户:', payload.username);
     return payload;
   } catch (error) {
-    console.error('[JWT] 验证过程出错:', error);
+    Logger.error('[JWT] 验证过程出错', error);
     return null;
   }
 }

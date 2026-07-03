@@ -36,3 +36,6 @@ yarn-error.log*
 *.tmp
 .cache/
 
+
+# Committed by mistake previously
+test_output.txt

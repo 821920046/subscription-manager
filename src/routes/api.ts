@@ -18,10 +18,18 @@ import {
     formatNotificationContent,
 } from '../services/notification';
 import { getConfig, getRawConfig } from '../utils/config';
-import { generateJWT, verifyJWT, generateRandomSecret } from '../utils/auth';
+import {
+    generateJWT,
+    verifyJWT,
+    generateRandomSecret,
+    hashPasswordPBKDF2,
+    timingSafeEqual,
+} from '../utils/auth';
 import { verifyAdminPassword } from '../utils/config';
 import { getCookieValue } from '../utils/http';
 import { isRateLimited, getClientIP } from '../middleware/rateLimit';
+import { CONFIG } from '../config/constants';
+import { dayDiffInTimezone } from '../utils/date';
 import { z } from 'zod';
 import {
     LoginSchema,
@@ -140,7 +148,7 @@ async function handleLogin(ctx: ApiContext): Promise<Response> {
             ctx.env.SUBSCRIPTIONS_KV,
             'login',
             ctx.ip,
-            10
+            CONFIG.RATE_LIMIT.LOGIN.maxRequests
         );
         if (limited) {
             return errorResponse('请求过于频繁', 429);
@@ -173,7 +181,7 @@ async function handleLogin(ctx: ApiContext): Promise<Response> {
         }
     } catch (e: unknown) {
         if (e instanceof z.ZodError) {
-            return errorResponse(e.errors[0].message, 400);
+            return errorResponse(e.issues[0].message, 400);
         }
         return errorResponse('Invalid request', 400);
     }
@@ -198,7 +206,7 @@ async function handleThirdPartyNotify(ctx: ApiContext): Promise<Response> {
             ctx.env.SUBSCRIPTIONS_KV,
             'notify',
             ctx.ip,
-            20
+            CONFIG.RATE_LIMIT.NOTIFY.maxRequests
         );
         if (limited) {
             return errorResponse('请求过于频繁', 429);
@@ -208,7 +216,7 @@ async function handleThirdPartyNotify(ctx: ApiContext): Promise<Response> {
         const tokenQuery = ctx.url.searchParams.get('token') || '';
         const providedToken = tokenHeader || tokenQuery;
 
-        if (!providedToken || providedToken !== (ctx.config.thirdPartyToken || '')) {
+        if (!providedToken || !timingSafeEqual(providedToken, ctx.config.thirdPartyToken || '')) {
             return errorResponse('Unauthorized', 403);
         }
 
@@ -223,7 +231,7 @@ async function handleThirdPartyNotify(ctx: ApiContext): Promise<Response> {
         });
     } catch (error: unknown) {
         if (error instanceof z.ZodError) {
-            return errorResponse(error.errors[0].message, 400);
+            return errorResponse(error.issues[0].message, 400);
         }
         const message = error instanceof Error ? error.message : '未知错误';
         return jsonResponse(
@@ -246,57 +254,33 @@ async function handleConfigApi(ctx: ApiContext, method: string): Promise<Respons
         delete safeConfig.JWT_SECRET;
         delete safeConfig.ADMIN_PASSWORD;
         delete safeConfig.THIRD_PARTY_TOKEN;
-        return jsonResponse(safeConfig);
+        // 配置中含敏感凭据，禁止中间缓存/浏览器缓存
+        return jsonResponse(safeConfig, 200, { 'Cache-Control': 'no-store' });
     }
 
     if (method === 'POST') {
         try {
-            const json = await ctx.request.json();
+            const json = (await ctx.request.json()) as Record<string, unknown>;
             const body = await ConfigSchema.partial().parseAsync(json);
             const currentRawConfig = await getRawConfig(ctx.env);
 
-            const updatedConfig: Record<string, unknown> = {
-                ...currentRawConfig,
-                ADMIN_USERNAME: body.ADMIN_USERNAME || currentRawConfig.ADMIN_USERNAME,
-                TG_BOT_TOKEN: body.TG_BOT_TOKEN || '',
-                TG_CHAT_ID: body.TG_CHAT_ID || '',
-                NOTIFYX_API_KEY: body.NOTIFYX_API_KEY || '',
-                WENOTIFY_URL: body.WENOTIFY_URL || '',
-                WENOTIFY_TOKEN: body.WENOTIFY_TOKEN || '',
-                WENOTIFY_USERID: body.WENOTIFY_USERID || '',
-                WENOTIFY_TEMPLATE_ID: body.WENOTIFY_TEMPLATE_ID || '',
-                WENOTIFY_PATH: body.WENOTIFY_PATH || currentRawConfig.WENOTIFY_PATH || '/wxsend',
-                WEBHOOK_URL: body.WEBHOOK_URL || '',
-                WEBHOOK_METHOD: body.WEBHOOK_METHOD || 'POST',
-                WEBHOOK_HEADERS: body.WEBHOOK_HEADERS || '',
-                WEBHOOK_TEMPLATE: body.WEBHOOK_TEMPLATE || '',
-                WEBHOOK_PAYLOAD_MODE: body.WEBHOOK_PAYLOAD_MODE || 'auto',
-                SHOW_LUNAR: body.SHOW_LUNAR === true,
-                WECHATBOT_WEBHOOK: body.WECHATBOT_WEBHOOK || '',
-                WECHATBOT_MSG_TYPE: body.WECHATBOT_MSG_TYPE || 'text',
-                WECHATBOT_AT_MOBILES: body.WECHATBOT_AT_MOBILES || '',
-                WECHATBOT_AT_ALL: body.WECHATBOT_AT_ALL || 'false',
-                WECHAT_OA_APPID: body.WECHAT_OA_APPID || '',
-                WECHAT_OA_APPSECRET: body.WECHAT_OA_APPSECRET || '',
-                WECHAT_OA_TEMPLATE_ID: body.WECHAT_OA_TEMPLATE_ID || '',
-                WECHAT_OA_USERIDS: body.WECHAT_OA_USERIDS || '',
-                RESEND_API_KEY: body.RESEND_API_KEY || '',
-                EMAIL_FROM: body.EMAIL_FROM || '',
-                EMAIL_FROM_NAME: body.EMAIL_FROM_NAME || '',
-                EMAIL_TO: body.EMAIL_TO || '',
-                BARK_DEVICE_KEY: body.BARK_DEVICE_KEY || '',
-                BARK_SERVER: body.BARK_SERVER || 'https://api.day.app',
-                BARK_IS_ARCHIVE: body.BARK_IS_ARCHIVE || 'false',
-                ENABLED_NOTIFIERS: body.ENABLED_NOTIFIERS || ['notifyx'],
-                TIMEZONE: body.TIMEZONE || currentRawConfig.TIMEZONE || 'UTC',
-                REMINDER_TIMES: body.REMINDER_TIMES || currentRawConfig.REMINDER_TIMES || '',
-            };
-
-            if (body.ADMIN_PASSWORD) {
-                updatedConfig.ADMIN_PASSWORD = body.ADMIN_PASSWORD;
+            // 仅覆盖请求中显式提供的字段，避免部分更新时清空其它已保存配置
+            const providedKeys = new Set(Object.keys(json));
+            const bodyRecord = body as Record<string, unknown>;
+            const updatedConfig: Record<string, unknown> = { ...currentRawConfig };
+            for (const key of providedKeys) {
+                if (key === 'ADMIN_PASSWORD') continue; // 密码单独处理
+                if (key in bodyRecord) {
+                    updatedConfig[key] = bodyRecord[key];
+                }
             }
 
-            // 确保第三方Token存在
+            // 管理员密码：仅在显式提供且非空时更新，并以 WebCrypto PBKDF2 加盐哈希后存储
+            if (typeof body.ADMIN_PASSWORD === 'string' && body.ADMIN_PASSWORD.length > 0) {
+                updatedConfig.ADMIN_PASSWORD = await hashPasswordPBKDF2(body.ADMIN_PASSWORD);
+            }
+
+            // 确保第三方 Token / JWT 密钥存在
             if (!updatedConfig.THIRD_PARTY_TOKEN || updatedConfig.THIRD_PARTY_TOKEN === 'your-secret-key') {
                 updatedConfig.THIRD_PARTY_TOKEN = generateRandomSecret();
             }
@@ -318,7 +302,7 @@ async function handleConfigApi(ctx: ApiContext, method: string): Promise<Respons
             return jsonResponse({ success: true });
         } catch (error: unknown) {
             if (error instanceof z.ZodError) {
-                return errorResponse(error.errors[0].message, 400);
+                return errorResponse(error.issues[0].message, 400);
             }
             const message = error instanceof Error ? error.message : '未知错误';
             return errorResponse(message, 400);
@@ -472,7 +456,7 @@ async function handleTestNotification(ctx: ApiContext): Promise<Response> {
         });
     } catch (error: unknown) {
         if (error instanceof z.ZodError) {
-            return errorResponse(error.errors[0].message, 400);
+            return errorResponse(error.issues[0].message, 400);
         }
         const message = error instanceof Error ? error.message : '未知错误';
         return jsonResponse({ success: false, message }, 200);
@@ -498,7 +482,7 @@ async function handleSubscriptionsApi(ctx: ApiContext): Promise<Response> {
             return jsonResponse(result, result.success ? 201 : 400);
         } catch (error: unknown) {
             if (error instanceof z.ZodError) {
-                return errorResponse(error.errors[0].message, 400);
+                return errorResponse(error.issues[0].message, 400);
             }
             return errorResponse('Invalid request', 400);
         }
@@ -525,7 +509,7 @@ async function handleSubscriptionByIdApi(ctx: ApiContext): Promise<Response> {
 
             const now = new Date();
             const expiry = new Date(sub.expiryDate);
-            sub.daysRemaining = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            sub.daysRemaining = dayDiffInTimezone(expiry, now, ctx.config.timezone || 'UTC');
 
             const content = formatNotificationContent([sub], ctx.config);
             await sendNotificationToAllChannels('订阅提醒测试', content, ctx.config, ctx.env, '[手动测试]', [
@@ -551,7 +535,7 @@ async function handleSubscriptionByIdApi(ctx: ApiContext): Promise<Response> {
             return jsonResponse(result, result.success ? 200 : 400);
         } catch (error: unknown) {
             if (error instanceof z.ZodError) {
-                return errorResponse(error.errors[0].message, 400);
+                return errorResponse(error.issues[0].message, 400);
             }
             return errorResponse('Invalid request', 400);
         }

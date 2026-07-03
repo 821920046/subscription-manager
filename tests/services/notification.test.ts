@@ -28,8 +28,6 @@ function createMockKV() {
   };
 }
 
-// 模拟 fetch
-vi.mock('node-fetch');
 
 describe('Notification Service', () => {
   let mockEnv: any;
@@ -87,9 +85,6 @@ describe('Notification Service', () => {
         isArchive: 'false',
       },
     };
-
-    // 重置 fetch mock
-    vi.mocked(() => global.fetch, { partial: false });
   });
 
   describe('sendTelegramNotification', () => {

@@ -967,6 +967,7 @@ export const adminPage = `
         
         const now = new Date();
         const unitMap = { day: '天', month: '月', year: '年' };
+        function escapeHtml(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
         
         list.forEach(sub => {
           const exp = new Date(sub.expiryDate);
@@ -1002,10 +1003,10 @@ export const adminPage = `
           const tr = document.createElement('tr');
           tr.innerHTML = \`
             <td class="px-4 sm:px-6 py-4 whitespace-nowrap max-w-[80px] sm:max-w-[140px] md:max-w-[200px] overflow-hidden">
-                <div class="text-sm font-medium text-gray-900 truncate" title="\${sub.name}">\${sub.name}</div>
-                \${sub.notes ? \`<div class="text-xs text-gray-500 truncate" title="\${sub.notes.replace(/"/g,'&quot;')}">\${sub.notes}</div>\` : ''}
+                <div class="text-sm font-medium text-gray-900 truncate" title="\${escapeHtml(sub.name)}">\${escapeHtml(sub.name)}</div>
+                \${sub.notes ? \`<div class="text-xs text-gray-500 truncate" title="\${escapeHtml(sub.notes)}">\${escapeHtml(sub.notes)}</div>\` : ''}
             </td>
-            <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${sub.customType || '-'}</td>
+            <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${escapeHtml(sub.customType || '-')}</td>
             <td class="hidden sm:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${sub.periodValue}\${unitMap[sub.periodUnit]}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               \${dateStr}
@@ -1033,9 +1034,9 @@ export const adminPage = `
           card.innerHTML = \`
             <div class="flex justify-between items-start mb-3">
               <div class="overflow-hidden mr-2">
-                <h3 class="font-bold text-gray-900 text-lg truncate">\${sub.name}</h3>
+                <h3 class="font-bold text-gray-900 text-lg truncate">\${escapeHtml(sub.name)}</h3>
                 <div class="flex items-center text-xs text-gray-500 mt-1">
-                  <span class="bg-gray-100 px-2 py-0.5 rounded mr-2">\${sub.customType || '其他'}</span>
+                  <span class="bg-gray-100 px-2 py-0.5 rounded mr-2">\${escapeHtml(sub.customType || '其他')}</span>
                   <span>\${sub.periodValue}\${unitMap[sub.periodUnit]}</span>
                 </div>
               </div>
@@ -1051,7 +1052,7 @@ export const adminPage = `
             </div>
             
             <div class="flex justify-between items-center pt-2 border-t border-gray-100">
-              <div class="text-xs text-gray-400 italic truncate max-w-[120px]">\${sub.notes || '无备注'}</div>
+              <div class="text-xs text-gray-400 italic truncate max-w-[120px]">\${escapeHtml(sub.notes || '无备注')}</div>
               <div class="flex space-x-4">
                 <button onclick="openModal('\${sub.id}')" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-edit text-lg"></i></button>
                 <button onclick="toggleStatus('\${sub.id}', \${!sub.isActive})" class="text-blue-600 hover:text-blue-800">
@@ -1467,10 +1468,10 @@ export const adminPage = `
           const succs = (item.successes || []).map(s => s.channel).join(', ');
           const tr = document.createElement('tr');
           tr.innerHTML = \`
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${timeStr}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${item.title || '-'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">\${fails || '-'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">\${succs || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${escapeHtml(timeStr)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">\${escapeHtml(item.title || '-')}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">\${escapeHtml(fails || '-')}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">\${escapeHtml(succs || '-')}</td>
           \`;
           tbody.appendChild(tr);
         });

@@ -5,6 +5,34 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.1.0] - 2026-07-03
+
+本版本是一次面向“安全 + 正确性”的深度升级，在不改变现有功能的前提下修复了多个根因级问题。
+
+### 安全（Security）
+- **修复存储型 XSS（高危）**：后台列表/卡片/失败日志之前直接用 `innerHTML` 拼接未转义的订阅名称/备注/类型，恶意名称（如 `<img src=x onerror=...>`）会在管理员浏览器执行。新增 `escapeHtml` 并对所有用户数据转义。
+- **修复邮件 HTML 注入**：邮件正文之前直接把含用户数据的内容 `replace(/\n/g,'<br>')` 插入 HTML，现已先转义。
+- **调试页转义**：`/debug` 页面输出均经转义。
+- **常数时间比较**：JWT 签名与第三方 API Token 改用 `timingSafeEqual`，防止时序攻击。
+- **管理员密码哈希入库**：保存配置时对新密码进行 bcrypt 哈希（`HASHED:` 前缀），不再明文存储；兼容旧明文密码。
+- **敏感配置禁缓存**：`GET /api/config` 返回 `Cache-Control: no-store`。
+
+### 正确性（Correctness）
+- **时区日期计算**：“剩余天数/今天到期”以前用服务器（UTC）本地午夜计算，对非 UTC 用户会出现±1 天偏差。新增 `dayDiffInTimezone`，按配置时区的自然日计算。
+- **JWT 支持非 ASCII 用户名**：旧实现用 `btoa(JSON.stringify(...))`，遇到中文用户名会抛错导致无法登录；现改为 UTF-8 + base64url 编码。
+- **部分配置更新不再清空其它字段**：`POST /api/config` 仅覆盖请求中显式提供的字段。
+- **`reminderDays=0` 生效**：不再被 `|| 7` 误当作默认值。
+- **Zod 错误访问前向兼容**：`error.errors` → `error.issues`（zod 3/4 均兼容）。
+
+### 工程 / CI
+- `wrangler.toml` 新增 `[env.staging]`/`[env.production]`（使 `deploy:staging`/`deploy:production` 可用），升级 `compatibility_date`。
+- 合并两个重复且互相矛盾的 GitHub Actions 工作流为单一正确的 `deploy.yml`（typecheck+lint+test → 部署）。
+- 删除误提交的 `test_output.txt`。
+- 修复 `tests/services/notification.test.ts` 中无效的 mock 语句；新增 `html`/`date`/UTF-8 JWT 回归测试。
+
+### ⚠️ 兼容性提示
+- JWT 编码从 base64 改为 base64url，升级后现有登录会失效，用户需重新登录（一次性）。
+
 ## [2.0.0] - 2026-01-13
 
 ### 重大优化
