@@ -4,6 +4,7 @@ import { Env, Subscription, Config, WeChatOfficialAccountConfig } from '../types
 import { formatTimeInTimezone, formatTimezoneDisplay } from '../utils/date';
 import { lunarCalendar } from '../utils/lunar';
 import { requestWithRetry } from '../utils/http';
+import { escapeHtml, escapeHtmlWithBreaks } from '../utils/html';
 
 // 外部 API 响应类型定义
 interface WeChatAccessTokenResponse {
@@ -796,7 +797,7 @@ export async function sendEmailNotification(title: string, content: string, conf
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title}</title>
+    <title>${escapeHtml(title)}</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5; }
         .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
@@ -812,11 +813,11 @@ export async function sendEmailNotification(title: string, content: string, conf
 <body>
     <div class="container">
         <div class="header">
-            <h1>📅 ${title}</h1>
+            <h1>📅 ${escapeHtml(title)}</h1>
         </div>
         <div class="content">
             <div class="highlight">
-                ${content.replace(/\n/g, '<br>')}
+                ${escapeHtmlWithBreaks(content)}
             </div>
             <p>此邮件由订阅管理系统自动发送，请及时处理相关订阅事务。</p>
         </div>

@@ -1,5 +1,6 @@
 import { getConfig } from '../utils/config';
 import { Env } from '../types';
+import { escapeHtml } from '../utils/html';
 
 export async function handleDebugRequest(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -31,15 +32,15 @@ export async function handleDebugRequest(request: Request, env: Env): Promise<Re
   <h1>系统调试信息</h1>
   <div class="info">
     <h3>基本信息</h3>
-    <p>时间: ${debugInfo.timestamp}</p>
-    <p>路径: ${debugInfo.pathname}</p>
+    <p>时间: ${escapeHtml(debugInfo.timestamp)}</p>
+    <p>路径: ${escapeHtml(debugInfo.pathname)}</p>
     <p class="${debugInfo.kvBinding ? 'success' : 'error'}">KV绑定: ${debugInfo.kvBinding ? '✓' : '✗'}</p>
   </div>
 
   <div class="info">
     <h3>配置信息</h3>
     <p class="${debugInfo.configExists ? 'success' : 'error'}">配置存在: ${debugInfo.configExists ? '✓' : '✗'}</p>
-    <p>管理员用户名: ${debugInfo.adminUsername}</p>
+    <p>管理员用户名: ${escapeHtml(debugInfo.adminUsername)}</p>
     <p class="${debugInfo.hasJwtSecret ? 'success' : 'error'}">JWT密钥: ${debugInfo.hasJwtSecret ? '✓' : '✗'} (长度: ${debugInfo.jwtSecretLength})</p>
   </div>
 
@@ -53,8 +54,9 @@ export async function handleDebugRequest(request: Request, env: Env): Promise<Re
 </html>`, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });
-  } catch (error: any) {
-    return new Response(`调试页面错误: ${error.message}`, {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(`调试页面错误: ${escapeHtml(message)}`, {
       status: 500,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' }
     });

@@ -1,17 +1,50 @@
 name = "subscription-manager"
 main = "src/worker.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 # 绑定 KV 命名空间
+# 部署前请将下面的 id 替换为你自己的 KV Namespace ID：
+#   wrangler kv namespace create SUBSCRIPTIONS_KV
+# 也可以在 CI 中通过 secret 注入（见 .github/workflows/deploy.yml）。
 [[kv_namespaces]]
 binding = "SUBSCRIPTIONS_KV"
 id = "a2827759fb114eb682d59a426c4c85b5"
 
-# 自动任务（每分钟执行检查）
+# 自动任务（每分钟触发一次，代码内按配置时段过滤，实现灵活提醒）
 [triggers]
 crons = ["* * * * *"]
 
 # 环境变量
 [vars]
 ENVIRONMENT = "production"
+
+# ---------------------------------------------------------------------------
+# 多环境配置（配合 npm run deploy:staging / deploy:production 使用）
+# 每个环境都需要独立的 KV Namespace，请替换为对应的 id。
+# ---------------------------------------------------------------------------
+[env.staging]
+name = "subscription-manager-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+
+[[env.staging.kv_namespaces]]
+binding = "SUBSCRIPTIONS_KV"
+id = "REPLACE_WITH_STAGING_KV_ID"
+
+[env.staging.triggers]
+crons = ["* * * * *"]
+
+[env.production]
+name = "subscription-manager"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+[[env.production.kv_namespaces]]
+binding = "SUBSCRIPTIONS_KV"
+id = "REPLACE_WITH_PRODUCTION_KV_ID"
+
+[env.production.triggers]
+crons = ["* * * * *"]

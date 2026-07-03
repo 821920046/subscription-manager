@@ -1,5 +1,5 @@
 import { Config, Env } from '../types';
-import { generateRandomSecret, verifyPassword } from './auth';
+import { generateRandomSecret, verifyPassword, verifyPasswordPBKDF2 } from './auth';
 import { CONFIG } from '../config/constants';
 
 // 密码哈希标记前缀，用于识别已哈希的密码
@@ -7,8 +7,9 @@ const HASH_PREFIX = 'HASHED:';
 
 /**
  * 配置缓存
- * 注意：Cloudflare Workers 是无状态的，此缓存仅在单次请求的生命周期内有效
- * 对于同一请求中多次调用 getConfig 的场景可以避免重复 KV 读取
+ * 注意：此缓存是模块级变量，会在同一个 Worker isolate 的多次请求间复用（直到 TTL 过期）。
+ * 不同 isolate 之间不共享；配置更新后本 isolate 会调用 clearConfigCache() 立即失效，
+ * 其余 isolate 最多在 CONFIG.CACHE.CONFIG_TTL 内看到旧值。
  */
 interface ConfigCache {
   config: Config;
@@ -36,7 +37,12 @@ export async function verifyAdminPassword(
     return false;
   }
 
-  // 如果密码已哈希
+  // WebCrypto PBKDF2 哈希（当前默认方案）
+  if (storedPassword.startsWith('PBKDF2:')) {
+    return await verifyPasswordPBKDF2(inputPassword, storedPassword);
+  }
+
+  // 旧版 bcrypt 哈希（兼容）
   if (storedPassword.startsWith(HASH_PREFIX)) {
     const hashed = storedPassword.substring(HASH_PREFIX.length);
     return await verifyPassword(inputPassword, hashed);
