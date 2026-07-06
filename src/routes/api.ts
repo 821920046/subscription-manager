@@ -169,6 +169,10 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
         return handleExport(ctx);
     }
 
+    if (path === '/reindex' && method === 'POST') {
+        return handleReindex(ctx);
+    }
+
     return errorResponse('Not Found', 404);
 }
 
@@ -544,6 +548,15 @@ async function handleTestNotification(ctx: ApiContext): Promise<Response> {
         const message = error instanceof Error ? error.message : '未知错误';
         return jsonResponse({ success: false, message }, 200);
     }
+}
+
+/**
+ * 手动重建订阅索引（自愈：若索引与实际数据不一致，调用一次即可）
+ */
+async function handleReindex(ctx: ApiContext): Promise<Response> {
+    const service = new SubscriptionService(ctx.env);
+    const count = await service.reindex();
+    return jsonResponse({ success: true, count });
 }
 
 /**

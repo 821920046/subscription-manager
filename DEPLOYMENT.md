@@ -93,5 +93,5 @@ id = "您的_KV_NAMESPACE_ID"  # 在这里填入您在第2步中获得的ID
 
 ## 6. 常见问题
 
-*   **部署失败 (Lint Error)**：项目开启了 严格的类型检查。 如果 CI 报错，请先执行 `npm run validate` 检查本地代码是否通过。
+*   **部署失败 (Lint Error)**：项目开启了严格的类型检查。如果 CI 报错，请先执行 `npm run validate` 检查本地代码是否通过。
 *   **KV 绑定错误**：确保 `wrangler.toml` 中的 `binding` 名称与代码中使用的名称一致 (默认为 `SUBSCRIPTIONS_KV`)。

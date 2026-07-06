@@ -71,6 +71,28 @@ describe('Subscription Service', () => {
     });
 
     describe('getAllSubscriptions', () => {
+        it('读取热路径不应重复调用 KV list（免费额度）', async () => {
+            const store = new Map<string, string>();
+            let listCount = 0;
+            const kv = {
+                async get(k: string) { return store.get(k) ?? null; },
+                async put(k: string, v: string) { store.set(k, v); },
+                async delete(k: string) { store.delete(k); },
+                async list(o?: { prefix?: string }) {
+                    listCount++;
+                    const p = o?.prefix || '';
+                    return { keys: [...store.keys()].filter((k) => k.startsWith(p)).map((name) => ({ name })), list_complete: true };
+                },
+            };
+            const svc = new SubscriptionService({ SUBSCRIPTIONS_KV: kv } as never);
+            store.set('subscription:a', JSON.stringify({ id: 'a', name: 'A', expiryDate: '2030-01-01T00:00:00.000Z', isActive: true, autoRenew: true }));
+            await svc.getAllSubscriptions(); // 首次重建索引（1 次 list）
+            listCount = 0;
+            await svc.getAllSubscriptions();
+            await svc.getAllSubscriptions();
+            expect(listCount).toBe(0);
+        });
+
         it('应该返回空数组当没有订阅时', async () => {
             const subscriptions = await service.getAllSubscriptions();
             expect(subscriptions).toEqual([]);

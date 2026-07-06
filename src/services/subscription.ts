@@ -54,13 +54,72 @@ export class SubscriptionService {
   constructor(private env: Env) { }
 
   /**
-   * 获取所有订阅（使用分批并行获取优化性能）
+   * 获取所有订阅。
+   * 读取热路径只用 KV get（索引 + 各条目），**不在热路径使用 KV list**，
+   * 以符合免费套餐“每日 1000 次 list”限制（定时任务每分钟触发时尤为关键）。
+   * 仅当索引缺失（首次/迁移）时才用一次 list 重建并持久化索引。
    */
   async getAllSubscriptions(): Promise<Subscription[]> {
     if (!this.env.SUBSCRIPTIONS_KV) return [];
+    const ids = await this.getOrRebuildIndexIds();
+    return this.getByIds(ids);
+  }
 
-    // 通过 KV 前缀列举直接枚举所有订阅键，无需维护可变索引，
-    // 从根本上消除并发创建/删除时对 subscriptions:index 的读-改-写竞态（可能丢数据）。
+  /** 按 id 批量读取订阅（仅使用 KV get） */
+  private async getByIds(ids: string[]): Promise<Subscription[]> {
+    const subscriptions: Subscription[] = [];
+    const BATCH_SIZE = CONFIG.BATCH.SUBSCRIPTION_BATCH_SIZE;
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batch = ids.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map((id) => this.env.SUBSCRIPTIONS_KV.get('subscription:' + id))
+      );
+      for (const result of results) {
+        if (result !== null) {
+          try {
+            subscriptions.push(JSON.parse(result) as Subscription);
+          } catch {
+            // 忽略解析错误
+          }
+        }
+      }
+    }
+    return subscriptions;
+  }
+
+  /**
+   * 读取订阅索引；若索引缺失则重建并持久化（这是唯一会用到 KV list 的地方，仅偶发触发）。
+   * 兼容两类历史数据：旧版 'subscriptions' 大对象，以及 v2.2.x 无索引的 subscription:* 键。
+   */
+  private async getOrRebuildIndexIds(): Promise<string[]> {
+    const indexStr = await this.env.SUBSCRIPTIONS_KV.get('subscriptions:index');
+    if (indexStr) {
+      try {
+        const ids = JSON.parse(indexStr) as string[];
+        if (Array.isArray(ids)) return ids;
+      } catch {
+        // 索引损坏，走下方重建
+      }
+    }
+
+    // 迁移旧版 'subscriptions' 大对象
+    const legacy = await this.env.SUBSCRIPTIONS_KV.get('subscriptions');
+    if (legacy) {
+      let list: Subscription[] = [];
+      try {
+        list = JSON.parse(legacy) as Subscription[];
+      } catch {
+        list = [];
+      }
+      const ids = list.map((s) => s.id);
+      for (const s of list) {
+        await this.env.SUBSCRIPTIONS_KV.put('subscription:' + s.id, JSON.stringify(s));
+      }
+      await this.env.SUBSCRIPTIONS_KV.put('subscriptions:index', JSON.stringify(ids));
+      return ids;
+    }
+
+    // 索引缺失：通过前缀 list 重建一次，之后都走 get 索引
     const keys: string[] = [];
     let cursor: string | undefined;
     do {
@@ -68,41 +127,17 @@ export class SubscriptionService {
       for (const k of res.keys) keys.push(k.name);
       cursor = res.list_complete ? undefined : res.cursor;
     } while (cursor);
+    const ids = keys.map((k) => k.slice('subscription:'.length));
+    await this.env.SUBSCRIPTIONS_KV.put('subscriptions:index', JSON.stringify(ids));
+    return ids;
+  }
 
-    if (keys.length > 0) {
-      const subscriptions: Subscription[] = [];
-      const BATCH_SIZE = CONFIG.BATCH.SUBSCRIPTION_BATCH_SIZE;
-
-      // 分批并行获取，避免过多并发请求
-      for (let i = 0; i < keys.length; i += BATCH_SIZE) {
-        const batch = keys.slice(i, i + BATCH_SIZE);
-        const results = await Promise.all(batch.map((key) => this.env.SUBSCRIPTIONS_KV.get(key)));
-
-        for (const result of results) {
-          if (result !== null) {
-            try {
-              subscriptions.push(JSON.parse(result));
-            } catch {
-              // 忽略解析错误
-            }
-          }
-        }
-      }
-
-      return subscriptions;
-    }
-
-    // 兼容旧数据格式迁移：将历史 'subscriptions' 大对象拆分为 subscription:<id>
-    const legacy = await this.env.SUBSCRIPTIONS_KV.get('subscriptions');
-    if (legacy) {
-      const list: Subscription[] = JSON.parse(legacy);
-      for (const s of list) {
-        await this.env.SUBSCRIPTIONS_KV.put('subscription:' + s.id, JSON.stringify(s));
-      }
-      return list;
-    }
-
-    return [];
+  /** 强制用 KV list 重建索引（管理员手动自愈用，单次调用仅 1 次 list） */
+  async reindex(): Promise<number> {
+    if (!this.env.SUBSCRIPTIONS_KV) return 0;
+    await this.env.SUBSCRIPTIONS_KV.delete('subscriptions:index');
+    const ids = await this.getOrRebuildIndexIds();
+    return ids.length;
   }
 
   async getSubscription(id: string): Promise<Subscription | undefined> {
@@ -166,8 +201,13 @@ export class SubscriptionService {
         updatedAt: new Date().toISOString()
       };
 
-      // 直接写入订阅键；不再维护可变索引，避免并发写索引导致的数据丢失
+      // 写入订阅键并更新索引（读取热路径依赖索引，从而避免每次 list）
+      const ids = await this.getOrRebuildIndexIds();
       await this.env.SUBSCRIPTIONS_KV.put('subscription:' + newSubscription.id, JSON.stringify(newSubscription));
+      if (!ids.includes(newSubscription.id)) {
+        ids.push(newSubscription.id);
+        await this.env.SUBSCRIPTIONS_KV.put('subscriptions:index', JSON.stringify(ids));
+      }
       return { success: true, subscription: newSubscription };
     } catch (error: unknown) {
       console.error("创建订阅异常：", error);
@@ -241,11 +281,14 @@ export class SubscriptionService {
 
   async deleteSubscription(id: string): Promise<{ success: boolean; message?: string }> {
     try {
+      const ids = await this.getOrRebuildIndexIds();
       const existing = await this.env.SUBSCRIPTIONS_KV.get('subscription:' + id);
-      if (!existing) {
+      if (!existing && !ids.includes(id)) {
         return { success: false, message: '订阅不存在' };
       }
       await this.env.SUBSCRIPTIONS_KV.delete('subscription:' + id);
+      const newIds = ids.filter((x) => x !== id);
+      await this.env.SUBSCRIPTIONS_KV.put('subscriptions:index', JSON.stringify(newIds));
       return { success: true };
     } catch (error: unknown) {
       return { success: false, message: '删除订阅失败' };
